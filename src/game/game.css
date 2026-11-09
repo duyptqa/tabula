@@ -131,6 +131,19 @@ h2 {
     opacity: 1;
 }
 
+.boot-loading {
+    position: fixed;
+    inset: auto 0 12vh;
+    z-index: 60;
+    text-align: center;
+    font-family: var(--display, inherit);
+    font-size: 18px;
+    letter-spacing: 0.04em;
+    color: var(--text);
+    opacity: 0.85;
+    pointer-events: none;
+}
+
 /* ------------------------------------------------------------------ shared */
 
 .panel {

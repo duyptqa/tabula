@@ -5,6 +5,9 @@ import type { MeshInstance } from 'playcanvas';
 
 import type { ChibiSpec } from '../ui/portraits';
 
+import { findNode, hasModel, instantiate } from './assets';
+import { outlineInstances, outlineMaterial, toonify } from './toon';
+
 export type V3 = [number, number, number];
 export type Prim = 'box' | 'sphere' | 'cylinder' | 'cone' | 'capsule' | 'torus' | 'plane';
 
@@ -43,12 +46,15 @@ export function mat(color: string, o: MatOpts = {}): StandardMaterial {
         m.emissiveIntensity = o.ei ?? 1;
     } else {
         m.diffuse = hex(color);
-        m.useMetalness = true;
-        m.metalness = 0;
-        m.gloss = o.gloss ?? 0.22;
         if (o.emissive) {
             m.emissive = hex(o.emissive);
             m.emissiveIntensity = o.ei ?? 1;
+        }
+        toonify(m);
+        if (o.gloss !== undefined && o.gloss > 0.5) {
+            // water and glassy things keep a soft highlight
+            m.gloss = o.gloss;
+            m.specularityFactor = 0.6;
         }
     }
     if (o.opacity !== undefined && o.opacity < 1) {
@@ -126,6 +132,7 @@ export function group(parent: Entity, name: string, pos: V3 = [0, 0, 0], rotY = 
 
 const originals = new WeakMap<MeshInstance, StandardMaterial>();
 const PAPER = '#F4F1FF';
+const PAPER_INK = '#B9B2D9';
 
 export function setPaper(root: Entity, on: boolean) {
     const renders = root.findComponents('render') as unknown as { entity: Entity; meshInstances: MeshInstance[] }[];
@@ -136,7 +143,8 @@ export function setPaper(root: Entity, on: boolean) {
             if (on) {
                 if (!originals.has(mi)) originals.set(mi, cur);
                 const orig = originals.get(mi)!;
-                if (isOutline) mi.material = outlineMat('#B9B2D9');
+                if (outlineInstances.has(mi)) mi.material = outlineMaterial(hex(PAPER_INK), 0.0013);
+                else if (isOutline) mi.material = outlineMat(PAPER_INK);
                 else if (orig.useLighting === false) mi.material = mat('#FFFFFF', { unlit: true, ei: 0.9 });
                 else mi.material = mat(PAPER);
             } else if (originals.has(mi)) {
@@ -167,10 +175,45 @@ export interface Rig {
     armR: Entity;
     legL: Entity | null;
     legR: Entity | null;
+    /** elbow and knee pivots (Blender models only) */
+    foreL: Entity | null;
+    foreR: Entity | null;
+    shinL: Entity | null;
+    shinR: Entity | null;
     streak: Entity[];
     floating: boolean;
     phase: number;
     bodyY: number;
+}
+
+/**
+ * A rig from a Blender model: its pivots are nodes named '<asset>:<pivot>' (see
+ * art/blender/characters.py), so the same procedural animation drives it.
+ */
+export function rigFromModel(asset: string, floating = false): Rig {
+    const root = new Entity(asset);
+    const inst = instantiate(asset);
+    root.addChild(inst);
+    const node = (k: string) => findNode(inst, asset, k);
+    const body = node('body')!;
+    const rig: Rig = {
+        root,
+        body,
+        head: node('head') ?? body,
+        armL: node('armL') ?? body,
+        armR: node('armR') ?? body,
+        legL: node('legL'),
+        legR: node('legR'),
+        foreL: node('foreL'),
+        foreR: node('foreR'),
+        shinL: node('shinL'),
+        shinR: node('shinR'),
+        streak: ['streak1', 'streak2', 'streak3'].map(node).filter((e): e is Entity => !!e),
+        floating,
+        phase: Math.random() * 10,
+        bodyY: body.getLocalPosition().y
+    };
+    return rig;
 }
 
 const OL = 0.022;
@@ -278,6 +321,10 @@ function newRig(name: string, floating = false): Rig {
         armR: body,
         legL: null,
         legR: null,
+        foreL: null,
+        foreR: null,
+        shinL: null,
+        shinR: null,
         streak: [],
         floating,
         phase: Math.random() * 10,
@@ -292,6 +339,7 @@ function torso(rig: Rig, outfit: string, trim: string) {
 }
 
 export function buildChibi(spec: ChibiSpec, name = 'chibi'): Rig {
+    if (hasModel(name)) return rigFromModel(name);
     const rig = newRig(name);
     torso(rig, spec.outfit, spec.trim);
     limbs(rig, spec.outfit, spec.skin, '#3A3150', '#231E3A');
@@ -406,6 +454,8 @@ export function buildChibi(spec: ChibiSpec, name = 'chibi'): Rig {
 }
 
 export function buildItsuki(mirror = false): Rig {
+    const asset = mirror ? 'itsuki_mirror' : 'itsuki';
+    if (hasModel(asset)) return rigFromModel(asset);
     const rig = newRig(mirror ? 'mirror-itsuki' : 'itsuki');
     const hair = mirror ? '#CFC8EA' : '#3F4E9E';
     const coat = mirror ? '#4A4370' : '#EADFC8';
@@ -496,6 +546,7 @@ export function setStreak(rig: Rig, level: number) {
 }
 
 export function buildLethe(): Rig {
+    if (hasModel('lethe')) return rigFromModel('lethe', true);
     const rig = newRig('lethe', true);
     const { body, head } = rig;
     part(body, 'cone', { color: '#6B2F7A', pos: [0, -0.1, 0], scale: [0.62, 0.55, 0.52], outline: OL });
@@ -557,6 +608,12 @@ export function buildLethe(): Rig {
 }
 
 export function buildGolem(body: string, glow: string, scale = 1): Rig {
+    const asset = glow === '#FF9A4A' ? 'golem_forge' : 'golem';
+    if (hasModel(asset)) {
+        const r = rigFromModel(asset);
+        r.root.setLocalScale(scale, scale, scale);
+        return r;
+    }
     const rig = newRig('golem');
     rig.root.setLocalScale(scale, scale, scale);
     part(rig.body, 'box', { color: body, pos: [0, 0.05, 0], scale: [0.85, 0.7, 0.6], outline: OL });
@@ -588,6 +645,7 @@ export function buildGolem(body: string, glow: string, scale = 1): Rig {
 }
 
 export function buildStag(): Rig {
+    if (hasModel('stag')) return rigFromModel('stag');
     const rig = newRig('stag');
     rig.body.setLocalPosition(0, 0.95, 0);
     rig.bodyY = 0.95;
@@ -632,6 +690,11 @@ export function buildStag(): Rig {
 }
 
 export function buildSphinx(): Rig {
+    if (hasModel('sphinx')) {
+        const r = rigFromModel('sphinx');
+        r.root.setLocalScale(1.5, 1.5, 1.5);
+        return r;
+    }
     const rig = newRig('sphinx');
     rig.root.setLocalScale(1.5, 1.5, 1.5);
     rig.body.setLocalPosition(0, 0.4, 0);
@@ -661,19 +724,42 @@ export function buildSphinx(): Rig {
 
 /** Walk / idle animation. speed is 0..1. */
 export function animateRig(rig: Rig, dt: number, speed: number) {
-    rig.phase += dt * (speed > 0.05 ? 9 + speed * 4 : 2.2);
+    const moving = speed > 0.05;
+    rig.phase += dt * (moving ? 9 + speed * 4 : 2.2);
     const p = rig.phase;
     if (rig.floating) {
-        rig.body.setLocalPosition(0, 0.62 + Math.sin(p * 0.9) * 0.06, 0);
-        rig.armL.setLocalEulerAngles(0, 0, -10 + Math.sin(p) * 8);
-        rig.armR.setLocalEulerAngles(0, 0, 10 - Math.sin(p) * 8);
+        // drifting in the air, Paimon-style: bob, paddle the arms, let the legs dangle
+        rig.body.setLocalPosition(0, rig.bodyY + 0.07 + Math.sin(p * 0.9) * 0.06, 0);
+        rig.body.setLocalEulerAngles(4 + Math.sin(p * 0.9 + 1) * 3, 0, Math.sin(p * 0.45) * 3);
+        rig.armL.setLocalEulerAngles(-8 + Math.sin(p) * 6, 0, -14 + Math.sin(p) * 8);
+        rig.armR.setLocalEulerAngles(-8 - Math.sin(p) * 6, 0, 14 - Math.sin(p) * 8);
+        rig.legL?.setLocalEulerAngles(-12 + Math.sin(p * 0.9) * 8, 0, -4);
+        rig.legR?.setLocalEulerAngles(-4 - Math.sin(p * 0.9) * 8, 0, 4);
+        rig.shinL?.setLocalEulerAngles(28 + Math.sin(p * 0.9 + 0.6) * 10, 0, 0);
+        rig.shinR?.setLocalEulerAngles(18 - Math.sin(p * 0.9 + 0.6) * 10, 0, 0);
+        rig.foreL?.setLocalEulerAngles(-24, 0, 0);
+        rig.foreR?.setLocalEulerAngles(-24, 0, 0);
         return;
     }
-    const swing = speed > 0.05 ? Math.sin(p) * 32 * Math.min(1, speed) : 0;
+    const k = moving ? Math.min(1, speed) : 0;
+    const s = Math.sin(p);
+    const c = Math.cos(p);
+    const swing = s * 32 * k;
     rig.legL?.setLocalEulerAngles(swing, 0, 0);
     rig.legR?.setLocalEulerAngles(-swing, 0, 0);
-    rig.armL.setLocalEulerAngles(-swing * 0.8, 0, 0);
-    rig.armR.setLocalEulerAngles(swing * 0.8, 0, 0);
-    const bob = speed > 0.05 ? Math.abs(Math.sin(p)) * 0.05 : Math.sin(p) * 0.012;
+    // knees fold while each foot travels forward
+    rig.shinL?.setLocalEulerAngles(4 + Math.max(0, -c) * 52 * k + 6 * k, 0, 0);
+    rig.shinR?.setLocalEulerAngles(4 + Math.max(0, c) * 52 * k + 6 * k, 0, 0);
+    const breathe = moving ? 0 : Math.sin(p) * 2.5;
+    rig.armL.setLocalEulerAngles(-swing * 0.8, 0, -3 - breathe * 0.4);
+    rig.armR.setLocalEulerAngles(swing * 0.8, 0, 3 + breathe * 0.4);
+    rig.foreL?.setLocalEulerAngles(-8 - (12 + Math.max(0, -s) * 26) * k, 0, 0);
+    rig.foreR?.setLocalEulerAngles(-8 - (12 + Math.max(0, s) * 26) * k, 0, 0);
+    const bob = moving ? Math.abs(s) * 0.05 * (0.6 + 0.4 * k) : Math.sin(p) * 0.008;
     rig.body.setLocalPosition(0, rig.bodyY + bob, 0);
+    if (rig.foreL) {
+        // models only: lean into the run, twist the shoulders against the hips
+        rig.body.setLocalEulerAngles(7 * k + breathe * 0.3, -s * 7 * k, 0);
+        rig.head.setLocalEulerAngles(-4 * k, s * 5 * k, 0);
+    }
 }
