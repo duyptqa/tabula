@@ -1,20 +1,12 @@
 // The Blender-built anime models (art/blender -> public/models): preload, then instantiate with
 // cel-shaded materials and outlines. Material names are '<asset>.<role>' from the Blender scripts.
-import { Asset, AssetListLoader } from 'playcanvas';
-import type {
-    AppBase,
-    Color,
-    ContainerResource,
-    Entity,
-    MeshInstance,
-    RenderComponent,
-    StandardMaterial
-} from 'playcanvas';
+import { Asset, AssetListLoader, Color } from 'playcanvas';
+import type { AppBase, ContainerResource, Entity, MeshInstance, RenderComponent, StandardMaterial } from 'playcanvas';
 
 import { addOutline, glowMaterial, inkOf, toonMaterial } from './toon';
 
-/** Every model the game knows; missing files fall back to the primitive builders. */
-export const MODEL_NAMES = [
+/** The characters (art/blender/characters.py). */
+export const CHARACTER_NAMES = [
     'itsuki',
     'itsuki_mirror',
     'lethe',
@@ -34,6 +26,41 @@ export const MODEL_NAMES = [
     'stag',
     'sphinx'
 ];
+
+/** The world props (art/blender/props.py). */
+export const PROP_NAMES = [
+    'island',
+    'tree_round',
+    'tree_pine',
+    'house',
+    'windmill',
+    'forge',
+    'spire',
+    'bell_tower',
+    'inkwell',
+    'slab',
+    'pedestal',
+    'dock',
+    'boat',
+    'signpost',
+    'arch',
+    'lantern',
+    'bench',
+    'heart',
+    'rock',
+    'dune',
+    'dome',
+    'volcano',
+    'music_box',
+    'stall',
+    'deck',
+    'log',
+    'obelisk',
+    'glider'
+];
+
+/** Every model the game knows; missing files fall back to the primitive builders. */
+export const MODEL_NAMES = [...CHARACTER_NAMES, ...PROP_NAMES];
 
 const loaded = new Map<string, ContainerResource>();
 
@@ -64,39 +91,70 @@ interface Converted {
     ink: Color | null;
 }
 
-const converted = new WeakMap<StandardMaterial, Converted>();
+const converted = new Map<string, Converted>();
 
 function roleOf(m: StandardMaterial): string {
     const i = m.name.lastIndexOf('.');
     return i >= 0 ? m.name.slice(i + 1) : m.name;
 }
 
-function convert(src: StandardMaterial, skinInk: Color | null): Converted {
-    const hit = converted.get(src);
-    if (hit) return hit;
+/** Shade suffixes: '<role>_d' is a darker tone of '<role>', '<role>_l' a lighter one. */
+const DARK = new Color(0.165, 0.12, 0.29);
+
+function tint(base: string, suffix: string): Color {
+    const c = new Color().fromString(base);
+    if (suffix === '_d') return new Color().lerp(DARK, c, 0.72);
+    if (suffix === '_l') return new Color().lerp(new Color(1, 1, 1), c, 0.7);
+    return c;
+}
+
+/** The colour a role is retinted to, if the instance asks for it. */
+function recolor(role: string, colors?: Record<string, string>): Color | null {
+    if (!colors) return null;
+    if (colors[role]) return tint(colors[role], '');
+    const m = /^(.*)(_d|_l)$/.exec(role);
+    if (m && colors[m[1]]) return tint(colors[m[1]], m[2]);
+    return null;
+}
+
+function convert(src: StandardMaterial, skinInk: Color | null, colors?: Record<string, string>): Converted {
     const role = roleOf(src);
+    const tinted = recolor(role, colors);
+    const key = `${src.name}|${tinted ? tinted.toString(false) : ''}`;
+    const hit = converted.get(key);
+    if (hit) return hit;
     const e = src.emissive;
     let out: Converted;
     if (e.r + e.g + e.b > 0.02) {
-        out = { mat: glowMaterial(e, 1.25), ink: null };
+        out = { mat: glowMaterial(tinted ?? e, 1.25), ink: null };
     } else {
         // anime faces avoid harsh shadow shapes: the face is always lit, skin mostly so
         const face = role === 'face';
         const soft = face || role === 'skin';
-        const mat = toonMaterial(src.diffuse, {
+        const mat = toonMaterial(tinted ?? src.diffuse, {
             map: src.diffuseMap,
             edge: face ? -1.5 : soft ? -0.42 : 0.05,
             rim: soft ? 0.1 : 0.16
         });
-        const ink = role === 'face' && skinInk ? skinInk : inkOf(src.diffuse);
+        const ink = role === 'face' && skinInk ? skinInk : inkOf(tinted ?? src.diffuse);
         out = { mat, ink };
     }
-    converted.set(src, out);
+    converted.set(key, out);
     return out;
 }
 
+export interface InstanceOpts {
+    /** outline width (fraction of the camera distance) */
+    outline?: number;
+    /** retint material roles: { leaf: '#2C6346' } also retints 'leaf_d' */
+    colors?: Record<string, string>;
+    /** cast shadows (glowing parts never do) */
+    shadows?: boolean;
+}
+
 /** A fresh, cel-shaded, outlined copy of a loaded model. */
-export function instantiate(name: string, outlineWidth = 0.0013): Entity {
+export function instantiate(name: string, opts: InstanceOpts = {}): Entity {
+    const outlineWidth = opts.outline ?? 0.0013;
     const res = loaded.get(name);
     if (!res) throw new Error(`model ${name} is not loaded`);
     const root = res.instantiateRenderEntity();
@@ -113,8 +171,9 @@ export function instantiate(name: string, outlineWidth = 0.0013): Entity {
         const inks: Color[] = [];
         for (const mi of rc.meshInstances) {
             const src = mi.material as StandardMaterial;
-            const c = convert(src, skinInk);
+            const c = convert(src, skinInk, opts.colors);
             mi.material = c.mat;
+            if (!c.ink || opts.shadows === false) mi.castShadow = false;
             // anime faces never take cast shadows (no hair shadow blotches across the eyes)
             if (roleOf(src) === 'face') mi.receiveShadow = false;
             if (c.ink) {
