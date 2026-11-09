@@ -16,7 +16,7 @@ A PlayCanvas Engine app in TypeScript, built with Vite. The scene is built in co
 
 - `index.html` is the page, with the `<canvas id="application-canvas">` the app draws into.
 - `src/main.ts` is the entry point. It creates the graphics device and the app, then the scene.
-- `src/starter.css` styles the page and the starter's panels.
+- `src/game/` holds the game: `Game.ts` owns state, modes and story; `world/` builds the isles and the player; `duel/` is the code-duel engine and screen; `ui/` holds the DOM overlays; `game.css` styles them.
 - `src/inspector.ts` loads the Inspector. `vite.config.ts` adds it in the dev server only, so production builds leave it out.
 - `public/` holds files copied into the build as they are, such as models and textures.
 
