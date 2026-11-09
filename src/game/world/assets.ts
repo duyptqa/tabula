@@ -14,7 +14,26 @@ import type {
 import { addOutline, glowMaterial, inkOf, toonMaterial } from './toon';
 
 /** Every model the game knows; missing files fall back to the primitive builders. */
-export const MODEL_NAMES = ['itsuki', 'itsuki_mirror'];
+export const MODEL_NAMES = [
+    'itsuki',
+    'itsuki_mirror',
+    'lethe',
+    'mom',
+    'tomo',
+    'pix',
+    'wade',
+    'vesper',
+    'brakk',
+    'sable',
+    'overflow',
+    'deadlock',
+    'segfault',
+    'null',
+    'golem',
+    'golem_forge',
+    'stag',
+    'sphinx'
+];
 
 const loaded = new Map<string, ContainerResource>();
 

@@ -10,6 +10,7 @@ import {
     RESOLUTION_AUTO,
     RenderComponentSystem,
     TextureHandler,
+    WasmModule,
     createGraphicsDevice
 } from 'playcanvas';
 
@@ -48,6 +49,13 @@ const loading = document.createElement('div');
 loading.className = 'boot-loading';
 loading.textContent = 'Unrolling the scrolls…';
 document.body.append(loading);
+// The models are Draco-compressed. The glTF parser decodes them in workers using this config;
+// the decoder files come from the engine repo's examples/assets/wasm/draco at the installed tag.
+WasmModule.setConfig('DracoDecoderModule', {
+    glueUrl: './wasm/draco/draco.wasm.js',
+    wasmUrl: './wasm/draco/draco.wasm.wasm',
+    numWorkers: 2
+});
 await loadModels(app, undefined, (k) => {
     loading.textContent = `Unrolling the scrolls… ${Math.round(k * 100)}%`;
 });

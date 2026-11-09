@@ -878,7 +878,7 @@ def descendants(o):
     return out
 
 
-def export_glb(root, filename, *, draco=False):
+def export_glb(root, filename, *, draco=True):
     ensure_object_mode()
     os.makedirs(OUT_DIR, exist_ok=True)
     path = os.path.join(OUT_DIR, filename)

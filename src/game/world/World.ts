@@ -185,7 +185,7 @@ export class World {
                 rig = buildLethe();
                 break;
             default:
-                rig = buildChibi(s.chibi!, id);
+                rig = buildChibi(s.chibi!, speaker);
         }
         if (scale !== 1) rig.root.setLocalScale(scale, scale, scale);
         const [wx, wz] = this.w(isle, x, z);
