@@ -6,6 +6,7 @@ import { sfx } from '../audio';
 import { CAST } from '../cast';
 import type { SpeakerId } from '../cast';
 import { Tweens, ease } from '../tween';
+import { hasModel, instantiate } from '../world/assets';
 import {
     animateRig,
     buildChibi,
@@ -73,9 +74,24 @@ export class Arena {
             }
             this.tiles.push(row);
         }
-        // floating stone ring under the grid
-        part(this.root, 'cylinder', { color: '#2E2858', pos: [0, -0.35, 0], scale: [12.5, 0.6, 7.2], outline: 0.08 });
-        part(this.root, 'cone', { color: '#211C3F', pos: [0, -2.6, 0], rot: [180, 0, 0], scale: [11, 4, 6.4] });
+        // a floating isle of stone under the grid
+        if (hasModel('island')) {
+            const base = instantiate('island', {
+                colors: { top: '#2E2858', soil: '#3A3170', rock: '#211C3F', crystal: '#8FF3FF' },
+                shadows: false
+            });
+            base.setLocalPosition(0, -0.07, 0);
+            base.setLocalScale(6.3, 3.4, 3.65);
+            this.root.addChild(base);
+        } else {
+            part(this.root, 'cylinder', {
+                color: '#2E2858',
+                pos: [0, -0.35, 0],
+                scale: [12.5, 0.6, 7.2],
+                outline: 0.08
+            });
+            part(this.root, 'cone', { color: '#211C3F', pos: [0, -2.6, 0], rot: [180, 0, 0], scale: [11, 4, 6.4] });
+        }
         part(this.root, 'torus', {
             color: '#5ED6E8',
             pos: [0, -0.02, 0],
@@ -85,6 +101,14 @@ export class Arena {
         });
         for (let i = 0; i < 6; i++) {
             const a = (i / 6) * Math.PI * 2;
+            if (hasModel('rock')) {
+                P.rock(this.root, Math.cos(a) * 11, Math.sin(a) * 7 - 3, 1.1, '#2B2452').setLocalPosition(
+                    Math.cos(a) * 11,
+                    -1.2 - (i % 3),
+                    Math.sin(a) * 7 - 3
+                );
+                continue;
+            }
             part(this.root, 'sphere', {
                 color: '#2B2452',
                 pos: [Math.cos(a) * 11, -1 - (i % 3), Math.sin(a) * 7 - 3],

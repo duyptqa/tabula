@@ -2,3 +2,4 @@
 .agents
 public/ammo
 pnpm-lock.yaml
+public/wasm

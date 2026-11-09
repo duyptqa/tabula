@@ -185,7 +185,7 @@ export class World {
                 rig = buildLethe();
                 break;
             default:
-                rig = buildChibi(s.chibi!, id);
+                rig = buildChibi(s.chibi!, speaker);
         }
         if (scale !== 1) rig.root.setLocalScale(scale, scale, scale);
         const [wx, wz] = this.w(isle, x, z);
@@ -274,8 +274,7 @@ export class World {
         this.forget('bun', stall);
         this.anchor('bakery', id, 7.6, 4.4);
         // rooftop lookout (a raised deck)
-        const deck = group(g, 'deck', [12.5, 0, -10]);
-        part(deck, 'box', { color: '#9A6B45', pos: [0, 0.15, 0], scale: [4, 0.3, 3], outline: 0.04 });
+        const deck = P.lookoutDeck(g, 12.5, -10);
         P.bench(deck, 0, -0.6, 30);
         this.forget('stars', deck);
         this.heart(g, id, 'hearthpage', 12.5, -10);
@@ -375,13 +374,7 @@ export class World {
         );
         this.inkwell(g, id, 11, 5);
         // a mossy log for Lethe
-        part(g, 'cylinder', {
-            color: '#6B4632',
-            pos: [7.5, 0.4, 12.5],
-            rot: [0, 0, 90],
-            scale: [0.8, 2.6, 0.8],
-            outline: 0.04
-        });
+        P.log(g, 7.5, 12.5);
         this.col(id, 7.5, 12.5, 1.2);
         this.heart(g, id, 'forkwood', 7.5, 12.5);
         // a Blank rift where Segfault lurks
@@ -480,7 +473,7 @@ export class World {
             [6, 3],
             [-2, -14]
         ]) {
-            part(g, 'cylinder', { color: '#C99A45', pos: [x, 1.2, z], scale: [0.6, 2.4, 0.6], outline: 0.04 });
+            P.obelisk(g, x, z);
             this.col(id, x, z, 0.4);
         }
         this.inkwell(g, id, 9, 4);

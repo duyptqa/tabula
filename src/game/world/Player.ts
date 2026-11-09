@@ -6,6 +6,7 @@ import type { Entity } from 'playcanvas';
 import { sfx } from '../audio';
 import type { Input } from '../input';
 
+import { hasModel, instantiate } from './assets';
 import { animateRig, buildItsuki, buildLethe, part, setStreak } from './models';
 import type { Rig } from './models';
 import type { World } from './World';
@@ -50,14 +51,20 @@ export class Player {
         this.lethe = buildLethe();
         this.lethe.root.setLocalScale(0.62, 0.62, 0.62);
         parent.addChild(this.lethe.root);
-        // glide wings on Itsuki's back, shown only while gliding
-        this.wings = part(this.rig.body, 'sphere', {
-            color: '#FF7AB6',
-            pos: [0, 0.15, -0.3],
-            scale: [1.9, 0.5, 0.14],
-            unlit: true,
-            opacity: 0.75
-        });
+        // glide wings on Itsuki's back, shown only while gliding: folded paper inked by Lethe
+        if (hasModel('glider')) {
+            this.wings = instantiate('glider');
+            this.wings.setLocalPosition(0, 1.12 - this.rig.bodyY, -0.1);
+            this.rig.body.addChild(this.wings);
+        } else {
+            this.wings = part(this.rig.body, 'sphere', {
+                color: '#FF7AB6',
+                pos: [0, 0.15, -0.3],
+                scale: [1.9, 0.5, 0.14],
+                unlit: true,
+                opacity: 0.75
+            });
+        }
         this.wings.enabled = false;
     }
 
