@@ -1,14 +1,32 @@
-# PlayCanvas Engine + TypeScript Starter
+# TABULA — and the Devil Who Ate My Memories
 
-A Vite-powered PlayCanvas Engine project with TypeScript, hot module replacement, ESLint and Prettier.
+An open-world 3D chibi RPG built with the PlayCanvas Engine, TypeScript and Vite. Itsuki, a scribe's apprentice, signs a contract with Lethe, a devil princess whose help he pays for with his own memories. Together they sail between six floating isles to recover the six stone slabs that wrote the world.
 
-## Spinning Cube
+## How to play
 
-A rotating cube, a camera and a directional light. It is the smallest PlayCanvas scene in the catalog.
+- **Explore.** Each isle has a puzzle, a guardian or rival, and a slab. Sail between isles from the docks at their edges, or open the map and travel by Inkwell once you've found one.
+- **Code duels.** Fights are 1v1 on a 5×3 grid. Write up to six lines on your Slate, then press RUN, and both scripts execute tick by tick. You can read some of the foe's lines in advance (their Tells). Use Script mode to type the lines Python-style instead, as in `loop 2: bolt()`. Typos become sneezes.
+- **New syntax.** Each slab teaches a construct: if / else, loops, a crafted function, a protected Name, and recursion with `fractal(n)`.
+- **The contract.** Lethe's devil runes and Devil's Edit cost Devil Ink. Pay off debt by feeding her memories in the Memory Ledger. Each forgotten memory changes the world: a friend's name, how to swim, the way home.
+- **The race.** After the first slab, two rival hunters set out on a clock. If a rival reaches a slab first, duel them for it or trade a memory in a pact.
+- **Three endings.** Your bond with Lethe and how much of Itsuki is left decide how the story ends.
+
+Progress autosaves to the browser's local storage.
 
 ### Controls
 
-The scene runs automatically; no input is required.
+| Input                                    | Action                                 |
+| ---------------------------------------- | -------------------------------------- |
+| <kbd>W A S D</kbd>                       | Move                                   |
+| <kbd>Shift</kbd>                         | Sprint                                 |
+| <kbd>Space</kbd>                         | Jump; hold in the air to glide         |
+| Drag, <kbd>Q</kbd> / <kbd>R</kbd>, wheel | Orbit and zoom the camera              |
+| <kbd>E</kbd>                             | Talk, interact, sail, advance dialogue |
+| <kbd>1</kbd>–<kbd>4</kbd>                | Pick a dialogue choice                 |
+| <kbd>M</kbd>                             | Map                                    |
+| <kbd>L</kbd>                             | Memory Ledger                          |
+| <kbd>Esc</kbd>                           | Menu                                   |
+| <kbd>Enter</kbd>                         | RUN / NEXT ROUND in a duel             |
 
 ## Prerequisites
 
@@ -21,7 +39,7 @@ pnpm install
 pnpm run dev
 ```
 
-The app opens in your browser at <http://localhost:5173>. Edit the files under `src/` and save to see the scene update.
+The game opens in your browser at <http://localhost:5173>. The code lives under `src/game/`: `Game.ts` runs the modes and story, `world/` builds the isles and the player, `duel/` holds the code-duel engine and screen, and `ui/` holds the HTML overlays.
 
 ## Inspector
 
