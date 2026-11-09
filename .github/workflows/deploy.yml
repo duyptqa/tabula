@@ -1,0 +1,60 @@
+# Check and build the game on every push and pull request; publish main to GitHub Pages.
+# One-time setup in the repository: Settings → Pages → Source: GitHub Actions.
+name: Deploy to GitHub Pages
+
+on:
+    push:
+        branches: [main]
+    pull_request:
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+concurrency:
+    group: build-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v7
+
+            - uses: pnpm/action-setup@v6
+              with:
+                  version: 12.15.0
+
+            - uses: actions/setup-node@v7
+              with:
+                  node-version: 24
+                  cache: pnpm
+
+            - run: pnpm install --frozen-lockfile
+            - run: pnpm run typecheck
+            - run: pnpm run lint
+            - run: pnpm run build
+
+            # vite.config.ts builds with relative URLs, so dist/ works under /<repo>/ as is
+            - if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+              uses: actions/upload-pages-artifact@v5
+              with:
+                  path: dist
+
+    deploy:
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        needs: build
+        runs-on: ubuntu-latest
+        permissions:
+            pages: write
+            id-token: write
+        environment:
+            name: github-pages
+            url: ${{ steps.deployment.outputs.page_url }}
+        # never cancel a deployment halfway through
+        concurrency:
+            group: pages
+            cancel-in-progress: false
+        steps:
+            - id: deployment
+              uses: actions/deploy-pages@v5
