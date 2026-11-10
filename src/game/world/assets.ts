@@ -56,7 +56,12 @@ export const PROP_NAMES = [
     'deck',
     'log',
     'obelisk',
-    'glider'
+    'glider',
+    'bush',
+    'grass',
+    'flowers',
+    'cloud',
+    'cloud_sea'
 ];
 
 /** Every model the game knows; missing files fall back to the primitive builders. */
@@ -88,10 +93,23 @@ export function hasModel(name: string): boolean {
 
 interface Converted {
     mat: StandardMaterial;
+    /** outline colour, or null for surfaces drawn without an outline */
     ink: Color | null;
+    /** glowing (unlit) surfaces never cast shadows */
+    glow: boolean;
 }
 
+/** Soft, painted environment surfaces: no ink outline (as in anime backgrounds). */
+const PAINTED = new Set(['grass', 'leaf', 'petal', 'stem', 'eye', 'cloud']);
+
 const converted = new Map<string, Converted>();
+
+const CHARACTERS = new Set(CHARACTER_NAMES);
+
+function assetOf(m: StandardMaterial): string {
+    const i = m.name.indexOf('.');
+    return i >= 0 ? m.name.slice(0, i) : '';
+}
 
 function roleOf(m: StandardMaterial): string {
     const i = m.name.lastIndexOf('.');
@@ -126,18 +144,41 @@ function convert(src: StandardMaterial, skinInk: Color | null, colors?: Record<s
     const e = src.emissive;
     let out: Converted;
     if (e.r + e.g + e.b > 0.02) {
-        out = { mat: glowMaterial(tinted ?? e, 1.25), ink: null };
+        out = { mat: glowMaterial(tinted ?? e, 1.25), ink: null, glow: true };
     } else {
-        // anime faces avoid harsh shadow shapes: the face is always lit, skin mostly so
+        // anime faces avoid harsh shadow shapes: the face is always lit, skin mostly so, and
+        // skin shadows are a warm rose rather than the cool shadow of everything else
         const face = role === 'face';
-        const soft = face || role === 'skin';
-        const mat = toonMaterial(tinted ?? src.diffuse, {
-            map: src.diffuseMap,
-            edge: face ? -1.5 : soft ? -0.42 : 0.05,
-            rim: soft ? 0.1 : 0.16
-        });
-        const ink = role === 'face' && skinInk ? skinInk : inkOf(tinted ?? src.diffuse);
-        out = { mat, ink };
+        const skin = role === 'skin';
+        const hair = role.startsWith('hair') || role === 'streak' || role === 'ahoge';
+        const character = CHARACTERS.has(assetOf(src));
+        const cloud = role === 'cloud';
+        const mat = cloud
+            ? // clouds: a wide, soft terminator, a pale lavender shadow and a bright rim
+              toonMaterial(tinted ?? src.diffuse, {
+                  edge: -0.25,
+                  soft: 0.4,
+                  shade: '#E2E4FF',
+                  sat: 0,
+                  rim: 0.3,
+                  vc: true
+              })
+            : toonMaterial(tinted ?? src.diffuse, {
+                  map: src.diffuseMap,
+                  edge: face ? -1.5 : skin ? -0.42 : character ? 0.05 : 0.0,
+                  soft: character ? 0.035 : 0.09,
+                  shade: face || skin ? '#FFC9C2' : undefined,
+                  lift: character ? (face || skin ? 0.3 : 0.38) : 0,
+                  ground: !character && role === 'top' ? 1 : 0,
+                  sat: face || skin ? 0.15 : 0.35,
+                  rim: character ? (face ? 0.12 : 0.26) : 0.06,
+                  hair: hair ? 0.55 : 0,
+                  twoSided: role === 'grass' || (role === 'leaf' && !character),
+                  vc: true
+              });
+        const painted = !character && PAINTED.has(role);
+        const ink = painted ? null : role === 'face' && skinInk ? skinInk : inkOf(tinted ?? src.diffuse);
+        out = { mat, ink, glow: false };
     }
     converted.set(key, out);
     return out;
@@ -173,7 +214,8 @@ export function instantiate(name: string, opts: InstanceOpts = {}): Entity {
             const src = mi.material as StandardMaterial;
             const c = convert(src, skinInk, opts.colors);
             mi.material = c.mat;
-            if (!c.ink || opts.shadows === false) mi.castShadow = false;
+            if (c.glow || opts.shadows === false) mi.castShadow = false;
+            if (roleOf(src) === 'cloud') mi.receiveShadow = false;
             // anime faces never take cast shadows (no hair shadow blotches across the eyes)
             if (roleOf(src) === 'face') mi.receiveShadow = false;
             if (c.ink) {

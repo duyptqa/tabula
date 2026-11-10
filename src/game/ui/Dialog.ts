@@ -1,6 +1,8 @@
-// Visual-novel style dialog box with portraits, a typewriter effect and choices.
+// Anime-RPG conversation subtitles: the speaker's name between gold rules over a centred line, a
+// typewriter effect and choices stacked at the right. The game frames the speaker's 3D model with
+// the camera (onSpeak), so there are no 2D portraits.
 import { sfx } from '../audio';
-import { CAST, portrait } from '../cast';
+import { CAST } from '../cast';
 import type { SpeakerId } from '../cast';
 
 import { h } from './dom';
@@ -26,6 +28,8 @@ export class Dialog {
     streak = 1;
     active = false;
     private lastWho: SpeakerId | null = null;
+    /** Called with each new speaker, and null when the conversation closes. */
+    onSpeak: ((who: SpeakerId | null) => void) | null = null;
 
     constructor(stage: Stage) {
         this.layer = stage.layer('dialog');
@@ -42,26 +46,23 @@ export class Dialog {
         this.layer.style.display = on ? '' : 'none';
         this.layer.parentElement?.classList.toggle('talking', on);
         this.active = on;
-        if (!on) this.lastWho = null;
+        if (!on) {
+            this.lastWho = null;
+            this.onSpeak?.(null);
+        }
     }
 
     private frame(who: SpeakerId, body: HTMLElement[]): void {
         const sp = CAST[who];
         const isNarr = who === 'narrator' || who === 'sign';
-        this.box.className = `dlg ${isNarr ? 'narr' : ''} ${who === 'sign' ? 'sign' : ''} ${who === 'itsuki' ? 'left' : 'right'}`;
+        this.box.className = `dlg ${isNarr ? 'narr' : ''} ${who === 'sign' ? 'sign' : ''} ${who !== this.lastWho ? 'pop' : ''}`;
         const kids: HTMLElement[] = [];
-        if (!isNarr)
-            kids.push(
-                h('div', {
-                    class: `dlg-portrait ${who !== this.lastWho ? 'pop' : ''}`,
-                    html: portrait(who, 210, this.streak)
-                })
-            );
+        if (who !== this.lastWho) this.onSpeak?.(who);
         this.lastWho = who;
         const inner = h('div', { class: 'dlg-inner' }, [
             !isNarr
-                ? h('div', { class: 'dlg-name', style: `color:${sp.accent}` }, [
-                      h('span', { text: sp.name }),
+                ? h('div', { class: 'dlg-name' }, [
+                      h('span', { class: 'who', text: sp.name, style: `--accent:${sp.accent}` }),
                       sp.role ? h('span', { class: 'role', text: sp.role }) : null
                   ])
                 : null,

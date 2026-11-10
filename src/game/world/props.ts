@@ -302,7 +302,7 @@ export function bellTower(parent: Entity, x: number, z: number): { root: Entity;
 export function lantern(parent: Entity, x: number, z: number, color = '#FFD98A'): Entity {
     const g = group(parent, 'lantern', [x, 0, z]);
     if (hasModel('lantern')) {
-        model(g, 'lantern', 1, { colors: { glow: color } });
+        model(g, 'lantern', 1, { colors: { glow: color, iron: '#4B3E3A' } });
         return g;
     }
     part(g, 'cylinder', { color: '#3A3150', pos: [0, 1.0, 0], scale: [0.12, 2.0, 0.12], shadow: false });
@@ -444,17 +444,6 @@ export function spire(parent: Entity, x: number, z: number): { root: Entity; orb
     const orb = part(g, 'sphere', { color: '#FF7AB6', pos: [0, 17.6, 0], scale: 1.2, unlit: true });
     part(g, 'sphere', { color: '#FF7AB6', pos: [0, 17.6, 0], scale: 2.6, unlit: true, opacity: 0.25 });
     return { root: g, orb };
-}
-
-export function water(parent: Entity, x: number, z: number, r: number): Entity {
-    return part(parent, 'cylinder', {
-        color: '#3A8AA6',
-        pos: [x, 0.02, z],
-        scale: [2 * r, 0.04, 2 * r],
-        opacity: 0.85,
-        shadow: false,
-        gloss: 0.8
-    });
 }
 
 export function musicBox(parent: Entity, x: number, z: number): Entity {
@@ -608,5 +597,63 @@ export function theBlank(parent: Entity): Entity {
         opacity: 0.4,
         shadow: false
     });
+    return g;
+}
+
+// ---------------------------------------------------------------------------------------------
+// anime ground cover and sky (art/blender/anime_env.py)
+
+/** A tuft of grass blades, tinted a touch lighter than the isle's grass. */
+export function grassTuft(parent: Entity, x: number, z: number, s: number, yaw: number, color: string): Entity | null {
+    if (!hasModel('grass')) return null;
+    const g = group(parent, 'grass', [x, 0, z], yaw);
+    model(g, 'grass', s, { colors: { grass: color }, shadows: false });
+    return g;
+}
+
+/** A clump of five-petal flowers. */
+export function flowerClump(
+    parent: Entity,
+    x: number,
+    z: number,
+    s: number,
+    yaw: number,
+    petal: string
+): Entity | null {
+    if (!hasModel('flowers')) return null;
+    const g = group(parent, 'flowers', [x, 0, z], yaw);
+    model(g, 'flowers', s, { colors: { petal }, shadows: false });
+    return g;
+}
+
+/** A round flowering shrub. */
+export function bush(
+    parent: Entity,
+    x: number,
+    z: number,
+    s: number,
+    yaw: number,
+    leaf: string,
+    petal: string
+): Entity | null {
+    if (!hasModel('bush')) return null;
+    const g = group(parent, 'bush', [x, 0, z], yaw);
+    model(g, 'bush', s, { colors: { leaf, petal } });
+    return g;
+}
+
+/** A drifting cumulus. */
+export function cloud(parent: Entity, x: number, y: number, z: number, s: number, yaw: number): Entity | null {
+    if (!hasModel('cloud')) return null;
+    const g = group(parent, 'cloud', [x, y, z], yaw);
+    model(g, 'cloud', s, { shadows: false });
+    return g;
+}
+
+/** The sea of clouds far below the isles. */
+export function cloudSea(parent: Entity, y: number): Entity | null {
+    if (!hasModel('cloud_sea')) return null;
+    const g = group(parent, 'cloud-sea', [0, y, 0]);
+    model(g, 'cloud_sea', 1, { shadows: false });
     return g;
 }

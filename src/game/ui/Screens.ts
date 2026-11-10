@@ -5,7 +5,7 @@ import type { SlabId } from '../data';
 
 import { h } from './dom';
 import type { Stage } from './dom';
-import { itsukiSvg, letheSvg } from './portraits';
+import { letheSvg } from './portraits';
 
 export function slabSvg(id: SlabId, w: number, glow = true): string {
     const d = SLABS[id];
@@ -75,38 +75,29 @@ export class Screens {
             newBtn,
             h('button', { class: 'ghost', text: sound ? '♪ Sound on' : '♪ Sound off', on: { click: () => on.sound() } })
         ]);
-        const glyphs = (['choice', 'echo', 'order', 'name', 'craft', 'self'] as SlabId[]).map((id, i) =>
-            h('div', { class: `t-slab s${i}`, html: slabSvg(id, i < 2 ? 52 : i < 4 ? 62 : 72) })
-        );
+        // the live, sunlit isles are the backdrop; the copy sits centred over them
         this.open('title', [
-            h('div', { class: 'stars-wrap', html: STARS }),
-            h('div', { class: 'glow cyan' }),
-            h('div', { class: 'glow pink' }),
-            h('div', { class: 't-ring' }),
-            ...glyphs,
-            h('div', { class: 't-itsuki', html: itsukiSvg(380, 2) }),
-            h('div', { class: 't-lethe', html: letheSvg(220) }),
+            h('div', { class: 't-veil' }),
             h('div', { class: 't-copy' }, [
-                h('div', { class: 'cap cyan', text: 'OPEN-WORLD RPG · 3D CHIBI ANIME' }),
-                h('div', {}, [
-                    h('h1', { text: 'TABULA' }),
-                    h('div', { class: 't-sub', text: 'and the Devil Who Ate My Memories' })
-                ]),
+                h('div', { class: 't-cap', text: 'An open-world anime RPG' }),
+                h('h1', { class: 't-logo', text: 'TABULA' }),
+                h('div', { class: 't-sub', text: 'and the Devil Who Ate My Memories' }),
+                h('div', { class: 't-rule' }),
                 h('p', {
                     text: "Six stone slabs hold the knowledge that wrote the world. Collect them all to rewrite its ending — duel with code, crack the world's puzzles, and pay your devil partner with your own memories."
                 }),
                 h('div', { class: 'chips' }, [
-                    h('span', { class: 'chip cyan', text: 'Open world' }),
-                    h('span', { class: 'chip cyan', text: '1v1 code duels' }),
-                    h('span', { class: 'chip pink', text: 'Memory contract' }),
-                    h('span', { class: 'chip pink', text: 'Rival hunters' })
-                ]),
-                btns
+                    h('span', { class: 'chip', text: 'Open world' }),
+                    h('span', { class: 'chip', text: '1v1 code duels' }),
+                    h('span', { class: 'chip', text: 'Memory contract' }),
+                    h('span', { class: 'chip', text: 'Rival hunters' })
+                ])
             ]),
+            btns,
             h('div', {
                 class: 't-foot',
                 html: SLAB_ORDER.map((s) => `<span>${SLABS[s].name.toUpperCase()}</span>`).join(
-                    '<span class="dot">·</span>'
+                    '<span class="dot">◆</span>'
                 )
             })
         ]);
