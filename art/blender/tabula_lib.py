@@ -751,8 +751,8 @@ def paint_face(asset, f):
 
     # blush under the eyes
     for sx in (-1, 1):
-        cv.over(cv.soft_ellipse(sx * (ex + s * 0.25), ez - s * 1.35, s * 1.05, s * 0.42), f.get('blush', '#FF8FAA'), 0.45)
-        if f.get('blush_lines', True):
+        cv.over(cv.soft_ellipse(sx * (ex + s * 0.25), ez - s * 1.35, s * 1.05, s * 0.42), f.get('blush', '#FF8FAA'), 0.3)
+        if f.get('blush_lines', False):
             for k in range(3):
                 bx = sx * (ex + s * (-0.15 + 0.32 * k))
                 cv.over(
@@ -770,15 +770,16 @@ def paint_face(asset, f):
 
         # eye opening: white with a lavender top shadow
         ox, oz = P(0, -0.05)
-        opening = cv.ellipse(ox, oz, s * 0.98, s * 0.92 * open_k)
-        top_cut = cv.Z < (ez + (0.78 * open_k) * s)
+        # almond: a wide, shallow opening (the newest Genshin cast), not a round moe eye
+        opening = cv.ellipse(ox, oz, s * 0.98, s * 0.8 * open_k)
+        top_cut = cv.Z < (ez + (0.68 * open_k) * s)
         opening = opening * top_cut
         cv.over(opening, '#FBF8FF')
         shade_top = cv.ellipse(ox, oz + s * 0.55 * open_k, s * 1.0, s * 0.5 * open_k)
         cv.over(opening * shade_top, '#C9C0E6', 0.65)
         # iris with a vertical gradient
         ix, iz = P(-0.06, -0.12 * open_k)
-        irx, irz = s * 0.6, s * 0.9 * max(open_k, 0.7)
+        irx, irz = s * 0.66, s * 0.95 * max(open_k, 0.7)
         ir = cv.ellipse(ix, iz, irx, irz) * opening
         g = np.clip((cv.Z - (iz - irz)) / (2 * irz), 0, 1)[..., None]
         grad = np.asarray(light_iris, np.float32)[None, None] * (1 - g) + np.asarray(dark_iris, np.float32)[None, None] * g
@@ -802,7 +803,7 @@ def paint_face(asset, f):
         hx, hz = ix + s * 0.12, iz + irz * 0.55
         cv.over(cv.ellipse(hx, hz, s * 0.05, s * 0.05) * opening, '#FFFFFF', 0.8)
         # upper lash line: thick, with an outer flick
-        top = 0.86 * open_k
+        top = 0.76 * open_k
         a, b, c = P(-1.02, top * 0.35), P(-0.1, top * 1.08 + 0.05), P(1.08, top * 0.58)
         cv.over(cv.curve(a, b, c, s * 0.07, s * 0.15, s * 0.12), lash)
         d, e = P(1.08, top * 0.58), P(1.28, top * 0.25 - 0.05)
@@ -821,13 +822,13 @@ def paint_face(asset, f):
         a = P(-0.75, 1.62 + bt * -0.6)
         b = P(0.1, 1.82)
         c = P(0.95, 1.58 + bt)
-        cv.over(cv.curve(a, b, c, s * 0.05, s * 0.065, s * 0.02), f.get('brow', lash), 0.95)
+        cv.over(cv.curve(a, b, c, s * 0.03, s * 0.04, s * 0.012), f.get('brow', lash), 0.85)
 
     # nose hint and mouth
     nz = ez - s * 1.3
     cv.over(cv.stroke([(s * 0.04, nz + s * 0.1), (s * 0.0, nz - s * 0.05)], [s * 0.03, s * 0.02]), mix_hex(f['skin'], '#B06070', 0.55), 0.6)
     mz = f.get('mouth_z', ez - s * 2.2)
-    mw = f.get('mouth_w', s * 0.55)
+    mw = f.get('mouth_w', s * 0.4)
     mouth = f.get('mouth', 'smile')
     mc = f.get('mouth_color', '#8A3A4A')
     if mouth == 'smile':
@@ -878,7 +879,8 @@ def descendants(o):
     return out
 
 
-def export_glb(root, filename, *, draco=True):
+def export_glb(root, filename, *, draco=True, vcol=False):
+    """vcol exports each mesh's active colour attribute as COLOR_0 (painted gradients)."""
     ensure_object_mode()
     os.makedirs(OUT_DIR, exist_ok=True)
     path = os.path.join(OUT_DIR, filename)
@@ -898,7 +900,7 @@ def export_glb(root, filename, *, draco=True):
         export_materials='EXPORT',
         export_animations=False,
         export_extras=True,
-        export_vertex_color='NONE',
+        export_vertex_color='ACTIVE' if vcol else 'NONE',
     )
     if draco:
         kw.update(
@@ -907,6 +909,7 @@ def export_glb(root, filename, *, draco=True):
             export_draco_position_quantization=14,
             export_draco_normal_quantization=10,
             export_draco_texcoord_quantization=12,
+            export_draco_color_quantization=10,
         )
     try:
         bpy.ops.export_scene.gltf(**kw)

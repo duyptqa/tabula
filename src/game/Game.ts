@@ -1,5 +1,5 @@
 // TABULA: the single owner of game state, modes, camera and the story flow.
-import { Color, Entity, FOG_LINEAR, Vec3 } from 'playcanvas';
+import { CameraFrame, Color, Entity, FOG_LINEAR, SHADOW_PCF5_32F, TONEMAP_NEUTRAL, Vec3 } from 'playcanvas';
 import type { AppBase } from 'playcanvas';
 
 import { playMelody, setSound, sfx } from './audio';
@@ -42,6 +42,8 @@ import { setBatchGroup } from './world/models';
 import { Player } from './world/Player';
 import type { MoveRules } from './world/Player';
 import * as P from './world/props';
+import { Sky } from './world/sky';
+import { setToonLighting } from './world/toon';
 import { World, spireRouteOpen } from './world/World';
 
 type Mode = 'title' | 'explore' | 'busy' | 'duel' | 'sail';
@@ -56,12 +58,12 @@ interface Inter {
 }
 
 const PLATFORM: Record<IsleId, string> = {
-    hearthpage: '#3F7A4C',
-    forkwood: '#24543B',
-    loopwater: '#245C73',
-    lexicon: '#9C7636',
-    forgehollow: '#5A302D',
-    spire: '#3A2E63'
+    hearthpage: '#86B957',
+    forkwood: '#5E9F55',
+    loopwater: '#5BBCD2',
+    lexicon: '#E6BE72',
+    forgehollow: '#B86C50',
+    spire: '#A699DC'
 };
 
 const DUEL_ISLE: Record<OppId, IsleId> = {
@@ -80,6 +82,7 @@ const GENERALS: OppId[] = ['overflow', 'deadlock', 'segfault'];
 
 export class Game {
     private camera: Entity;
+    private sky: Sky;
     private stage: Stage;
     private hud: Hud;
     private dialog: Dialog;
@@ -100,6 +103,11 @@ export class Game {
     private saveTimer = 0;
     private hudTimer = 0;
     private titleT = 0;
+    private skyDt = 0;
+    /** conversation camera: the shot on the current speaker, and how far we have eased into it */
+    private talkCam: { pos: Vec3; target: Vec3 } | null = null;
+    private talkPartner: Vec3 | null = null;
+    private talkBlend = 0;
     private isle: IsleId = 'hearthpage';
     private sail: { t: number; dur: number; p0: Vec3; p1: Vec3; p2: Vec3; done: () => void } | null = null;
     private wrongArches = 0;
@@ -107,43 +115,61 @@ export class Game {
 
     constructor(app: AppBase, canvas: HTMLCanvasElement) {
         const scene = app.scene;
-        scene.ambientLight = new Color(0.42, 0.4, 0.55);
+        // A bright anime afternoon: the sun is white at intensity 1 and the ambient black, because
+        // the toon combine chunk (world/toon.ts) paints the lit and shadow colours itself.
+        scene.ambientLight = new Color(0, 0, 0);
+        // aerial perspective: distant isles melt into the horizon haze
         scene.fog.type = FOG_LINEAR;
-        scene.fog.color = new Color(0.106, 0.086, 0.25);
-        scene.fog.start = 70;
-        scene.fog.end = 210;
+        scene.fog.color = new Color().fromString('#CDE6F6');
+        scene.fog.start = 55;
+        scene.fog.end = 330;
 
         this.camera = new Entity('camera');
         this.camera.addComponent('camera', {
-            clearColor: new Color(0.082, 0.071, 0.169),
+            clearColor: new Color().fromString('#CDEBFA'),
             fov: 50,
             nearClip: 0.1,
-            farClip: 700
+            farClip: 900
         });
         app.root.addChild(this.camera);
 
         const sun = new Entity('sun');
         sun.addComponent('light', {
             type: 'directional',
-            color: new Color(1, 0.94, 0.86),
-            intensity: 1.15,
+            color: new Color(1, 1, 1),
+            intensity: 1,
             castShadows: true,
-            shadowDistance: 60,
+            shadowType: SHADOW_PCF5_32F,
+            shadowDistance: 70,
             shadowResolution: 2048,
             shadowBias: 0.3,
             normalOffsetBias: 0.06
         });
-        sun.setEulerAngles(52, 35, 0);
+        sun.setEulerAngles(48, 35, 0);
         app.root.addChild(sun);
-        const rim = new Entity('rim');
-        rim.addComponent('light', {
-            type: 'directional',
-            color: new Color(0.55, 0.45, 0.9),
-            intensity: 0.35,
-            castShadows: false
-        });
-        rim.setEulerAngles(-30, -150, 0);
-        app.root.addChild(rim);
+        // the light shines along its local -Y; the shaders want the direction toward the sun
+        const toSun = sun.up.clone();
+        setToonLighting(app.graphicsDevice, '#FFF8EE', '#9AA0D8', toSun);
+        this.sky = new Sky(app.root, toSun);
+
+        // post: HDR with MSAA for crisp outlines, a soft bloom on glows and the sun, a gentle grade
+        const frame = new CameraFrame(app, this.camera.camera!);
+        frame.rendering.samples = 4;
+        frame.rendering.toneMapping = TONEMAP_NEUTRAL;
+        frame.rendering.sharpness = 0.25;
+        frame.bloom.intensity = 0.022;
+        frame.bloom.blurLevel = 7;
+        frame.bloom.threshold = 0.85;
+        frame.grading.enabled = true;
+        frame.grading.saturation = 1.04;
+        frame.grading.contrast = 1.04;
+        frame.grading.brightness = 1.03;
+        frame.vignette.intensity = 0.22;
+        frame.vignette.inner = 0.55;
+        frame.vignette.outer = 1.25;
+        frame.vignette.curvature = 0.6;
+        frame.update();
+        app.on('destroy', () => frame.destroy());
 
         this.world = new World(app);
         this.player = new Player(app.root);
@@ -158,6 +184,7 @@ export class Game {
         this.stage = new Stage();
         this.hud = new Hud(this.stage);
         this.dialog = new Dialog(this.stage);
+        this.dialog.onSpeak = (who) => this.talkFocus(who);
         this.puzzles = new Puzzles(this.stage);
         this.map = new MapScreen(this.stage);
         this.ledger = new Ledger(this.stage);
@@ -198,6 +225,7 @@ export class Game {
 
     private update(dt: number) {
         const s = this.s;
+        this.skyDt += dt;
         switch (this.mode) {
             case 'title': {
                 this.titleT += dt;
@@ -211,8 +239,7 @@ export class Game {
                 const exploring = this.mode === 'explore';
                 this.player.update(dt, this.input, this.world, this.rules(), exploring);
                 this.world.update(dt, this.player.pos.x, this.player.pos.z);
-                const cam = this.player.cameraPose();
-                this.setCamera(cam.pos, cam.target);
+                this.followCamera(dt);
                 if (exploring) this.exploreTick(dt);
                 break;
             }
@@ -242,9 +269,96 @@ export class Game {
         this.input.endFrame();
     }
 
+    /** The follow camera, eased into a close shot of whoever is speaking during conversations. */
+    private followCamera(dt: number) {
+        const cam = this.player.cameraPose();
+        this.talkBlend = Math.min(1, Math.max(0, this.talkBlend + (this.talkCam ? dt * 2.2 : -dt * 2.2)));
+        if (this.talkBlend <= 0 || !this.lastTalk) {
+            this.setCamera(cam.pos, cam.target);
+            return;
+        }
+        const k = this.talkBlend * this.talkBlend * (3 - 2 * this.talkBlend);
+        const t = this.lastTalk;
+        this.setCamera(new Vec3().lerp(cam.pos, t.pos, k), new Vec3().lerp(cam.target, t.target, k));
+    }
+
+    private lastTalk: { pos: Vec3; target: Vec3 } | null = null;
+
+    /** Where a rig's face is, and how big the rig is. */
+    private headOf(rig: { head: Entity; root: Entity }): { head: Vec3; scale: number } {
+        const scale = rig.root.getLocalScale().x;
+        return {
+            head: rig.head
+                .getPosition()
+                .clone()
+                .add(new Vec3(0, 0.1 * scale, 0)),
+            scale
+        };
+    }
+
+    private speakerHead(who: SpeakerId): { head: Vec3; scale: number } | null {
+        if (who === 'itsuki') return this.headOf(this.player.rig);
+        if (who === 'lethe') return this.headOf(this.player.lethe);
+        let best: { head: Vec3; scale: number } | null = null;
+        let bd = 14;
+        for (const n of this.world.npcs.values()) {
+            if (!n.visible || n.speaker !== who) continue;
+            const d = Math.hypot(n.x - this.player.pos.x, n.z - this.player.pos.z);
+            if (d < bd) {
+                bd = d;
+                best = this.headOf(n.rig);
+            }
+        }
+        return best;
+    }
+
+    /** Frame the speaker over the listener's shoulder, chest up, as anime RPGs stage dialogue. */
+    private talkFocus(who: SpeakerId | null) {
+        if (!who || who === 'narrator' || who === 'sign' || (this.mode !== 'busy' && this.mode !== 'explore')) {
+            this.talkCam = null;
+            if (!who) this.talkPartner = null;
+            return;
+        }
+        const sp = this.speakerHead(who);
+        if (!sp) {
+            this.talkCam = null;
+            return;
+        }
+        const me = this.headOf(this.player.rig).head;
+        let other: Vec3;
+        if (who === 'itsuki') other = this.talkPartner ?? this.headOf(this.player.lethe).head;
+        else {
+            other = me;
+            if (who !== 'lethe') {
+                this.talkPartner = sp.head.clone();
+                this.player.face(sp.head.x, sp.head.z);
+            }
+        }
+        const d = new Vec3(other.x - sp.head.x, 0, other.z - sp.head.z);
+        if (d.length() < 0.3)
+            d.set(Math.sin((this.player.yaw * Math.PI) / 180), 0, Math.cos((this.player.yaw * Math.PI) / 180));
+        d.normalize();
+        const side = new Vec3(d.z, 0, -d.x);
+        const s = Math.max(0.62, sp.scale);
+        // chest-up: about a metre of the speaker fills the frame, eyes in the upper third
+        const pos = sp.head
+            .clone()
+            .add(d.clone().mulScalar(1.05 * s + 0.2))
+            .add(side.clone().mulScalar(0.3 * s))
+            .add(new Vec3(0, 0.02 * s, 0));
+        const target = sp.head
+            .clone()
+            .add(new Vec3(0, -0.16 * s, 0))
+            .add(side.clone().mulScalar(0.1 * s));
+        this.talkCam = { pos, target };
+        this.lastTalk = this.talkCam;
+    }
+
     private setCamera(pos: Vec3, target: Vec3) {
         this.camera.setPosition(pos);
         this.camera.lookAt(target);
+        this.sky.update(this.skyDt, pos);
+        this.skyDt = 0;
     }
 
     private exploreTick(dt: number) {

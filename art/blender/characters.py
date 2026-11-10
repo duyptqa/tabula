@@ -67,10 +67,15 @@ BODIES = {
 }
 
 
-class B:
-    """Derived measurements for one body."""
+# Head scale per body kind, after the newest Genshin Impact cast: slender adults about seven
+# heads tall, teens about six and a half; children and the chibi devil keep their big heads.
+HEAD_K = {'teen_m': 0.92, 'teen_f': 0.92, 'adult_f': 0.9, 'adult_m': 0.9, 'big_m': 0.92, 'kid': 1.0}
 
-    def __init__(self, kind, **over):
+
+class B:
+    """Derived measurements for one body. raw=True skips the anime head scale (creatures)."""
+
+    def __init__(self, kind, raw=False, **over):
         d = dict(BODIES[kind])
         # a different height scales every vertical landmark not given explicitly
         if 'h' in over:
@@ -83,6 +88,14 @@ class B:
             setattr(self, k, v)
         self.kind = kind
         self.chibi = d.get('chibi', False)
+        if not self.chibi and not raw:
+            # a smaller head on the same height: the chin rises, and the body below it stretches to
+            # meet it (longer torso and legs, the neck keeps its length)
+            hr0 = self.hr
+            self.hr = hr0 * HEAD_K.get(kind, 1.0)
+            k = (self.h - 0.025 - 2.3 * self.hr) / (self.h - 0.025 - 2.3 * hr0)
+            for key in ('sh_z', 'neck', 'hip_z', 'knee', 'elbow', 'wrist'):
+                setattr(self, key, getattr(self, key) * k)
         self.hc = V((0, 0.0, self.h - 0.025 - self.hr))  # cranium centre
         self.neck_top = self.hc.z - self.hr * 0.85
         self.chin = self.hc.z - self.hr * 1.3
@@ -220,9 +233,10 @@ def build_head(c, face, *, ears=True, ear_kind='round', neck=True):
     f = dict(face)
     f.setdefault('half', hr * 1.02)
     f.setdefault('cz', -hr * 0.28)
-    f.setdefault('eye_s', hr * 0.235)
+    f.setdefault('size', 768)
+    f.setdefault('eye_s', hr * 0.25)
     f.setdefault('eye_x', hr * 0.42)
-    f.setdefault('eye_z', -hr * 0.2)
+    f.setdefault('eye_z', -hr * 0.22)
     if b.chibi:
         f['eye_s'] = hr * 0.26
         f['eye_x'] = hr * 0.43
@@ -289,7 +303,7 @@ def hair_lock(c, name, sph, width, mat, *, thick=None, piv='head', n=6, tip=0.0,
     return o
 
 
-def hair_cap(c, mat, *, front=0.42, nape=-0.78, side_low=-0.2, volume=1.1, back=1.16):
+def hair_cap(c, mat, *, front=0.42, nape=-0.78, side_low=-0.2, volume=1.15, back=1.2):
     """The hair mass over the cranium, cut away where the face shows."""
     b = c.b
     hr = b.hr
@@ -326,8 +340,12 @@ def hair_cap(c, mat, *, front=0.42, nape=-0.78, side_low=-0.2, volume=1.1, back=
     return cap
 
 
-def bangs(c, mat, *, count=7, spread=58, length=-6, width=None, part=0.0, sweep=8, jag=True, rk=1.12):
-    """Front fringe: locks from the crown falling over the forehead."""
+def bangs(c, mat, *, count=7, spread=58, length=-6, width=None, part=0.0, sweep=8, jag=True, rk=1.17, clear=None):
+    """Front fringe: locks from the crown falling over the forehead.
+
+    clear: azimuth of the eye centres; a lock whose tip would cross an eye stops just above it, so
+    long bangs fall between and beside the eyes (Genshin style) without hiding them.
+    """
     hr = c.b.hr
     w = width or hr * 0.3
     for i in range(count):
@@ -335,11 +353,13 @@ def bangs(c, mat, *, count=7, spread=58, length=-6, width=None, part=0.0, sweep=
         az = t * spread + part
         el_tip = length + (8 if jag and i % 2 else 0) - abs(t) * 6
         tipaz = az * 1.18 + sweep
+        if clear is not None and min(abs(tipaz - clear), abs(tipaz + clear)) < 13:
+            el_tip = max(el_tip, -2)
         hair_lock(c, f'bang{i}', [(az * 0.4, 72, 1.04), (az * 0.85, 40, rk + 0.04), (tipaz * 0.95, 12, rk),
                                   (tipaz, el_tip, rk - 0.05)], w * (1.05 - 0.25 * abs(t)), mat)
 
 
-def side_locks(c, mat, *, az=72, length=-70, width=None, rk=1.08, curl=0):
+def side_locks(c, mat, *, az=72, length=-70, width=None, rk=1.13, curl=0):
     hr = c.b.hr
     w = width or hr * 0.3
     for sx in (-1, 1):
@@ -347,7 +367,7 @@ def side_locks(c, mat, *, az=72, length=-70, width=None, rk=1.08, curl=0):
                               (sx * (az - 4 + curl), length, rk - 0.06)], w, mat)
 
 
-def back_locks(c, mat, *, count=7, length=-60, flick=0, width=None, rk=1.12, spread=150, out=0.0):
+def back_locks(c, mat, *, count=7, length=-60, flick=0, width=None, rk=1.17, spread=150, out=0.0):
     hr = c.b.hr
     w = width or hr * 0.36
     for i in range(count):
@@ -570,12 +590,13 @@ def belt(c, z, mat, *, rx, ry, h=0.022, t=0.01, buckle=None, tilt=0.0):
 # Itsuki (and his mirror)
 
 
-ITSUKI = dict(hair='#3F4E9E', hair_hi='#5A6CC4', coat='#EADFC8', lining='#CDBF9F', sleeve='#E2D6BC', cuff='#C9B994',
+ITSUKI = dict(hair='#3F4E9E', hair_hi='#5A6CC4', coat='#EADFC8', lining='#2F7C8C', sleeve='#E2D6BC', cuff='#E2BE6A',
               inner='#2E2A55', scarf='#4FC9DD', scarf2='#3BB3C8', stripe='#1E6E7C', iris='#E8A33D',
-              pants='#2B2547', boots='#6B4632', bootcuff='#8A5E3F', brow='#2E3A7A')
-MIRROR = dict(ITSUKI, hair='#CFC8EA', hair_hi='#EDE8FF', coat='#4A4370', lining='#3A3366', sleeve='#463F6C',
-              cuff='#5A4A8E', inner='#1E1A38', scarf='#FF7AB6', scarf2='#FF8DC0', stripe='#B0306E',
-              iris='#FF3D8B', brow='#8F86B8')
+              pants='#2B2547', boots='#6B4632', bootcuff='#D9B25E', brow='#2E3A7A', gold='#E8C46A', gem='#5FE3F0',
+              glove='#2E2A55')
+MIRROR = dict(ITSUKI, hair='#CFC8EA', hair_hi='#EDE8FF', coat='#4A4370', lining='#B0306E', sleeve='#463F6C',
+              cuff='#B8A6E8', inner='#1E1A38', scarf='#FF7AB6', scarf2='#FF8DC0', stripe='#B0306E',
+              iris='#FF3D8B', brow='#8F86B8', gold='#C9C2E8', gem='#FF3D8B', glove='#1E1A38', bootcuff='#B8A6E8')
 
 
 def build_itsuki(mirror=False, export=True):
@@ -588,10 +609,11 @@ def build_itsuki(mirror=False, export=True):
                        mouth='smirk' if mirror else 'smile', blush='#FF9DB0'))
     hair = c.m('hair', P['hair'])
     hair_cap(c, hair, front=0.5)
-    bangs(c, hair, count=7, spread=56, length=-4, part=-6, sweep=4)
+    bangs(c, hair, count=9, spread=58, length=-17, part=-6, sweep=4, width=b.hr * 0.26, clear=25)
     side_locks(c, hair, az=74, length=-62)
+    side_locks(c, hair, az=50, length=-52, width=b.hr * 0.2, rk=1.1)  # face-framing strands at the cheeks
     back_locks(c, hair, count=7, length=-58, flick=14, out=0.1)
-    back_locks(c, hair, count=6, length=-72, flick=-8, out=-0.04, rk=1.04, spread=110, width=b.hr * 0.3)
+    back_locks(c, hair, count=6, length=-72, flick=-8, out=-0.04, rk=1.09, spread=110, width=b.hr * 0.3)
     crown_spikes(c, hair, count=6, lift=0.9)
     ahoge(c, hair, az=12, size=1.0)
     # the memory streak: white locks laid over the blue, revealed as he forgets
@@ -621,13 +643,14 @@ def build_itsuki(mirror=False, export=True):
     lining = c.m('lining', P['lining'])
     inner = c.m('inner', P['inner'])
     keys = torso_keys(b, hem_z=0.5, flare=1.05)
+    gold = c.m('gold', P['gold'], rough=0.35)
     garment(c, 'coat', keys, coat,
             open_front=lambda z: 0.006 if z > 1.16 else 0.006 + (1.16 - z) * 0.14,
-            solid=0.008, trim=lining, hem_trim=lining)
+            solid=0.008, trim=gold, hem_trim=gold)
+    _ = lining
     ik = [(z, rx * 0.95, rb * 0.95, rf * 0.97) for z, rx, rb, rf in torso_keys(b, hem_z=b.hip_z)]
     garment(c, 'inner', ik, inner, solid=0, n=16)
-    belt(c, b.hip_z + 0.115, c.m('belt', '#7A5236'), rx=b.waist[0] * 0.93, ry=b.waist[2] * 0.97,
-         buckle=c.m('gold', '#E8C46A', rough=0.4))
+    belt(c, b.hip_z + 0.115, c.m('belt', '#7A5236'), rx=b.waist[0] * 0.93, ry=b.waist[2] * 0.97, buckle=gold)
     # scarf (it records every spell he learns)
     scarf = c.m('scarf', P['scarf'])
     scarf2 = c.m('scarf2', P['scarf2'])
@@ -647,6 +670,21 @@ def build_itsuki(mirror=False, export=True):
         i = int(tt * (len(tail) - 1))
         seg = [tail[i], tail[i].lerp(tail[i + 1], 0.45)]
         c.add('body', tube('band', seg, 0.036, 0.0105, n=8, side=(1, 0, -0.5), mat=stripe, subd=1))
+    # a jewelled brooch pinning the scarf, and a fine chain across to the coat
+    gem = c.m('gem', P['gem'], emit=P['gem'], strength=1.6)
+    bp = V((0.034, -hr * 0.66, nz - 0.012))
+    c.add('body', ring('brooch', bp, 0.017, 0.017, 0.0045, thick_z=0.0045, n=6, segs=20, mat=gold, subd=0,
+                       rot=(90, 0, 0)))
+    c.add('body', L.blob('broochgem', bp + V((0, -0.002, 0)), (0.011, 0.006, 0.013), mat=gem, segs=(10, 8)))
+    for sx_, dz in ((-1, 0), (1, 0)):
+        c.add('body', tube('broochpt', [bp + V((sx_ * 0.016, 0, dz)), bp + V((sx_ * 0.03, 0.002, dz - 0.004))],
+                           [(0, 0.006), (1, 0.0)], 0.003, n=6, side=(0, 0, 1), mat=gold, cap1=False))
+    chain = spline([bp + V((-0.012, 0.0, -0.012)), V((-0.02, -b.chest[2] - 0.03, nz - 0.1)),
+                    V((-0.075, -b.chest[2] - 0.02, nz - 0.12))], steps=6)
+    c.add('body', tube('chain', chain, 0.0028, n=6, mat=gold, subd=0))
+    hp = b.hc + D(58, 26) * hr * 1.2
+    c.add('head', L.box('hairpin', hp, (0.006, 0.05, 0.012), mat=gold, bevel=0.003, rot=(0, 0, 30)))
+    c.add('head', L.blob('pingem', hp + D(58, 26) * 0.006, (0.009, 0.009, 0.009), mat=gem, segs=(10, 8)))
     # satchel strap + satchel with a little slab
     leather = c.m('leather', '#8A5E3F')
     flap = c.m('flap', '#6E4730')
@@ -663,7 +701,8 @@ def build_itsuki(mirror=False, export=True):
     # arms
     hand = c.m('skin')
     for sx in (-1, 1):
-        sleeve_arm(c, sx, sleeve=c.m('sleeve', P['sleeve']), hand=hand, cuff=c.m('cuff', P['cuff']), wide=1.3)
+        sleeve_arm(c, sx, sleeve=c.m('sleeve', P['sleeve']), hand=hand, cuff=c.m('cuff', P['cuff']), wide=1.3,
+                   glove=c.m('glove', P['glove']))
     # Lethe's sigil on his right hand (+X)
     sig = c.m('sigil', '#FF7AB6', emit='#FF7AB6', strength=3.0)
     W = c.wrist(1)
@@ -675,6 +714,10 @@ def build_itsuki(mirror=False, export=True):
     for sx in (-1, 1):
         leg(c, sx, pants=c.m('pants', P['pants']), boot=c.m('boots', P['boots']), boot_top=0.62,
             cuff=c.m('bootcuff', P['bootcuff']))
+        # a gold strap across each boot
+        A = c.ankle(sx)
+        c.add('shin' + ('L' if sx < 0 else 'R'), ring('bootstrap', A + V((0, -0.004, 0.05)), 0.047, 0.047, 0.006,
+                                                      thick_z=0.012, n=6, segs=20, mat=c.m('bootcuff'), subd=0))
     return c.finish(export=export)
 
 
@@ -684,17 +727,18 @@ def build_itsuki(mirror=False, export=True):
 
 def hair_spiky(c, mat, *, lift=1.0, back_len=-58, wild=1.0, part=-6):
     hair_cap(c, mat, front=0.5)
-    bangs(c, mat, count=7, spread=56, length=-4, part=part, sweep=4)
+    bangs(c, mat, count=9, spread=58, length=-15, part=part, sweep=4, width=c.b.hr * 0.26, clear=25)
     side_locks(c, mat, az=74, length=-58)
+    side_locks(c, mat, az=50, length=-50, width=c.b.hr * 0.2, rk=1.1)
     back_locks(c, mat, count=7, length=back_len, flick=14 * wild, out=0.12 * wild)
-    back_locks(c, mat, count=6, length=back_len - 14, flick=-8, out=-0.04, rk=1.04, spread=110, width=c.b.hr * 0.3)
+    back_locks(c, mat, count=6, length=back_len - 14, flick=-8, out=-0.04, rk=1.09, spread=110, width=c.b.hr * 0.3)
     crown_spikes(c, mat, count=7, lift=lift)
 
 
 def hair_bob(c, mat, *, length=-78, curl=10, part=0, count=9, fringe=-8):
     hr = c.b.hr
-    hair_cap(c, mat, front=0.48, volume=1.12, back=1.2)
-    bangs(c, mat, count=count, spread=60, length=fringe, part=part, sweep=0, jag=False, rk=1.13)
+    hair_cap(c, mat, front=0.48, volume=1.17, back=1.24)
+    bangs(c, mat, count=count, spread=60, length=fringe - 7, part=part, sweep=0, rk=1.18, width=hr * 0.27, clear=25)
     for sx in (-1, 1):
         for k, az in enumerate((62, 82, 104)):
             hair_lock(c, 'bobside', [(sx * (az - 30), 58, 1.08), (sx * az, 20, 1.2), (sx * (az + 4), -30, 1.22),
@@ -708,8 +752,9 @@ def hair_bob(c, mat, *, length=-78, curl=10, part=0, count=9, fringe=-8):
 
 def hair_long(c, mat, *, to_z, part=0.0, fringe=-6, side_len=-110, count=9, spread=0.9):
     hr = c.b.hr
-    hair_cap(c, mat, front=0.46, volume=1.1, back=1.16)
-    bangs(c, mat, count=count, spread=62, length=fringe, part=part, sweep=-part * 0.3, jag=False, rk=1.12)
+    hair_cap(c, mat, front=0.46, volume=1.15, back=1.20)
+    bangs(c, mat, count=count, spread=62, length=fringe - 8, part=part, sweep=-part * 0.3, rk=1.17, width=hr * 0.26,
+          clear=25)
     for sx in (-1, 1):
         hair_lock(c, 'longside', [(sx * 50, 60, 1.08), (sx * 74, 18, 1.18), (sx * 80, -40, 1.2), (sx * 78, side_len, 1.3)],
                   hr * 0.38, mat)
@@ -725,9 +770,10 @@ def hair_ponytail(c, mat, *, tie, to_z, side=1, fringe=-10, part=12):
     """Mom's low side ponytail draped over one shoulder."""
     hr = c.b.hr
     b = c.b
-    hair_cap(c, mat, front=0.46, volume=1.09, back=1.18)
-    bangs(c, mat, count=7, spread=58, length=fringe, part=part, sweep=-6, jag=False, rk=1.11)
+    hair_cap(c, mat, front=0.46, volume=1.14, back=1.22)
+    bangs(c, mat, count=9, spread=58, length=fringe - 6, part=part, sweep=-6, rk=1.16, width=hr * 0.26, clear=25)
     side_locks(c, mat, az=76, length=-64, width=hr * 0.26)
+    side_locks(c, mat, az=50, length=-52, width=hr * 0.19, rk=1.1)
     root = hair_pt(b, side * 140, -40, 1.12)
     c.add('head', L.blob('tie', root, (hr * 0.13, hr * 0.13, hr * 0.13), mat=tie, segs=(10, 8)))
     sh = V((side * b.sh_x * 0.62, -0.075, b.sh_z + 0.01))
@@ -1055,8 +1101,8 @@ def humanoid(c, P):
     elif style == 'ponytail':
         hair_ponytail(c, hair, **hk)
     elif style == 'hooded':
-        bangs(c, hair, count=7, spread=50, length=-2, part=-4, sweep=4, rk=1.08)
-        side_locks(c, hair, az=70, length=-55, width=b.hr * 0.24, rk=1.04)
+        bangs(c, hair, count=9, spread=50, length=-13, part=-4, sweep=4, rk=1.13, width=b.hr * 0.24, clear=25)
+        side_locks(c, hair, az=70, length=-55, width=b.hr * 0.24, rk=1.09)
     top = P['top']
     keys = torso_keys(b, hem_z=top.get('hem_z', b.hip_z - 0.12), flare=top.get('flare', 1.0),
                       collar=top.get('collar', 0.0))
@@ -1248,6 +1294,26 @@ def buns(c, mat, *, tails=True, tail_mat=None):
 # the cast
 
 
+def jewelry(c, gold, gem, *, pin=True, pin_az=58):
+    """A jewelled brooch at the collar and a pin in the hair: the Genshin cast's signature accents."""
+    b = c.b
+    g = c.m('jgold', gold, rough=0.35)
+    j = c.m('jgem', gem, emit=gem, strength=1.4)
+    bp = V((0, -(b.chest[2] * 1.05 + 0.014), b.sh_z - 0.05))
+    c.add('body', ring('jbrooch', bp, 0.018, 0.018, 0.0045, thick_z=0.0045, n=6, segs=20, mat=g, subd=0,
+                       rot=(90, 0, 0)))
+    c.add('body', L.blob('jbroochgem', bp + V((0, -0.002, 0)), (0.012, 0.006, 0.014), mat=j, segs=(10, 8)))
+    for sx in (-1, 1):
+        c.add('body', tube('jwing', [bp + V((sx * 0.016, 0, 0)), bp + V((sx * 0.034, 0.002, -0.006))],
+                           [(0, 0.007), (1, 0.0)], 0.003, n=6, side=(0, 0, 1), mat=g, cap1=False))
+    c.add('body', tube('jdrop', [bp + V((0, 0, -0.016)), bp + V((0, -0.001, -0.04))], [(0, 0.005), (1, 0.0)], 0.004,
+                       n=6, side=(1, 0, 0), mat=g, cap1=False))
+    if pin:
+        hp = b.hc + D(pin_az, 26) * b.hr * 1.2
+        c.add('head', L.box('jpin', hp, (0.006, 0.05, 0.012), mat=g, bevel=0.003, rot=(0, 0, 30)))
+        c.add('head', L.blob('jpingem', hp + D(pin_az, 26) * 0.006, (0.009, 0.009, 0.009), mat=j, segs=(10, 8)))
+
+
 def build_mom(export=True):
     c = Char('mom', B('adult_f'))
     b = c.b
@@ -1332,6 +1398,7 @@ def build_vesper(export=True):
     belt(c, b.hip_z + 0.11, c.m('sash', '#E8C46A', rough=0.4), rx=b.waist[0] * 1.1, ry=b.waist[2] * 1.15, h=0.018)
     glasses(c, face, '#E8C46A')
     quill(c, 1)
+    jewelry(c, '#E8C46A', '#4FA3E0', pin_az=-58)
     return c.finish(export=export)
 
 
@@ -1353,6 +1420,7 @@ def build_brakk(export=True):
     # the iron loop he carries on his back
     c.add('body', ring('ironloop', V((0, b.chest[1] + 0.07, b.sh_z - 0.12)), 0.2, 0.2, 0.025, thick_z=0.025, n=10,
                        segs=36, mat=c.m('iron', '#7A7F8E', rough=0.4), rot=(90, 0, 18)))
+    jewelry(c, '#C9B994', '#3B8A4A')
     return c.finish(export=export)
 
 
@@ -1370,6 +1438,7 @@ def build_sable(export=True):
     hood(c, c.m('top'), trim=c.m('trim'), rk=1.3)
     half_mask(c, face, '#EDE6D6', line='#E8A33D')
     book(c, -1, '#3A3366', '#E8C46A', glyph='#8FF3FF')
+    jewelry(c, '#E8C46A', '#8FF3FF', pin=False)
     return c.finish(export=export)
 
 
@@ -1395,6 +1464,7 @@ def build_overflow(export=True):
                          mat=c.m('core', '#FFD08A', emit='#FFB347', strength=2.0), segs=(10, 8)))
     cape(c, '#8C3B2E', '#FFD08A', hem_z=0.45, wrap=78, flare=1.4, collar=False)
     devil_tail(c, '#3A1E1A', '#FFB347', heart=False)
+    jewelry(c, '#E8C46A', '#FF9A4A')
     return c.finish(export=export)
 
 
@@ -1420,6 +1490,7 @@ def build_deadlock(export=True):
                            rot=(90 if i % 2 else 0, 0, math.degrees(a))))
     c.add('body', L.box('padlock', V((b.hips[0] * 0.9, -b.hips[2] * 1.4, b.hip_z - 0.12)), (0.045, 0.02, 0.05),
                         mat=c.m('padlock', '#9AE6FF', emit='#9AE6FF', strength=1.4), bevel=0.008))
+    jewelry(c, '#E8C46A', '#8FF3FF', pin_az=-58)
     return c.finish(export=export)
 
 
@@ -1437,6 +1508,7 @@ def build_segfault(export=True):
     horns(c, '#1E2A22', kind='straight', size=1.45, glow='#A7F07A')
     glitch_bits(c, '#A7F07A')
     devil_tail(c, '#1E2A22', '#A7F07A', heart=False, length=0.9)
+    jewelry(c, '#E8C46A', '#7BD389')
     return c.finish(export=export)
 
 
@@ -1457,6 +1529,7 @@ def build_null(export=True):
     for sx in (-1, 1):
         pauldron(c, sx, '#2A2147', trim='#E8C46A', size=1.1)
     cape(c, '#2A2147', '#FF7AB6', hem_z=0.05, wrap=70, flare=1.9)
+    jewelry(c, '#E8C46A', '#FF7AB6', pin=False)
     return c.finish(export=export)
 
 
@@ -1470,11 +1543,11 @@ def build_lethe(export=True):
                        lash='#3A1840', brow='#B0306E', blush='#FF7AB6'))
     hair = c.m('hair', '#FFB3D1')
     hair2 = c.m('hair2', '#F28DBA')
-    hair_cap(c, hair, front=0.5, volume=1.12, back=1.2)
-    bangs(c, hair, count=9, spread=62, length=-14, part=-4, sweep=2, jag=True, rk=1.13)
-    side_locks(c, hair2, az=76, length=-78, width=hr * 0.3, rk=1.1)
+    hair_cap(c, hair, front=0.5, volume=1.17, back=1.24)
+    bangs(c, hair, count=9, spread=62, length=-14, part=-4, sweep=2, jag=True, rk=1.18)
+    side_locks(c, hair2, az=76, length=-78, width=hr * 0.3, rk=1.15)
     back_locks(c, hair, count=7, length=-70, flick=8, out=0.08, width=hr * 0.42)
-    back_locks(c, hair, count=6, length=-86, flick=-6, out=-0.04, rk=1.05, spread=120, width=hr * 0.34)
+    back_locks(c, hair, count=6, length=-86, flick=-6, out=-0.04, rk=1.10, spread=120, width=hr * 0.34)
     buns(c, hair, tails=True, tail_mat=hair2)
     ahoge(c, hair, az=-8, size=0.8)
     horns(c, '#3A1840', kind='curl', size=1.15, az=36, el=50)
@@ -1511,7 +1584,7 @@ def build_golem(variant='warden', export=True):
     body_c, glow_c, dark_c = {'warden': ('#8E89AE', '#8FF3FF', '#6F6A93'),
                               'forge': ('#6B3B37', '#FF9A4A', '#4A2826')}[variant]
     name = 'golem' if variant == 'warden' else 'golem_forge'
-    c = Char(name, B('big_m', h=1.62, hr=0.16, hip_z=0.56, sh_z=1.12, sh_x=0.36, neck=1.2, elbow=0.86, wrist=0.6,
+    c = Char(name, B('big_m', raw=True, h=1.62, hr=0.16, hip_z=0.56, sh_z=1.12, sh_x=0.36, neck=1.2, elbow=0.86, wrist=0.6,
                      knee=0.3, ankle=0.06, hip_x=0.17, limb=1.6))
     b = c.b
     stone = c.m('stone', body_c, rough=0.9)
@@ -1565,7 +1638,7 @@ def build_golem(variant='warden', export=True):
 
 def build_stag(export=True):
     """The wild stag of the Grove: a round, Genshin-style forest spirit with glowing antlers."""
-    c = Char('stag', B('adult_m', hr=0.11, hip_z=0.78, sh_z=0.78, sh_x=0.1, neck=1.1, hip_x=0.12, knee=0.4,
+    c = Char('stag', B('adult_m', raw=True, hr=0.11, hip_z=0.78, sh_z=0.78, sh_x=0.1, neck=1.1, hip_x=0.12, knee=0.4,
                        ankle=0.05))
     fur = c.m('fur', '#9A6B45')
     cream = c.m('cream', '#F3EBDD')
@@ -1638,7 +1711,7 @@ def build_stag(export=True):
 
 
 def build_sphinx(export=True):
-    c = Char('sphinx', B('adult_f', h=1.1, hr=0.13, hip_z=0.4, sh_z=0.62, sh_x=0.2, neck=0.75))
+    c = Char('sphinx', B('adult_f', raw=True, h=1.1, hr=0.13, hip_z=0.4, sh_z=0.62, sh_x=0.2, neck=0.75))
     b = c.b
     lion = c.m('lion', '#C99A45')
     lion2 = c.m('lionlight', '#E3C07A')

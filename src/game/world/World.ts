@@ -1,5 +1,5 @@
 // Scriptoria: the ring of floating isles around the Blank, built from primitives.
-import type { AppBase, Entity } from 'playcanvas';
+import type { AppBase, Entity, StandardMaterial } from 'playcanvas';
 import { Entity as PcEntity } from 'playcanvas';
 
 import { CAST } from '../cast';
@@ -25,6 +25,7 @@ import {
 } from './models';
 import type { Rig } from './models';
 import * as P from './props';
+import { waterMaterial } from './water';
 
 export interface Collider {
     x: number;
@@ -80,6 +81,8 @@ export class World {
     forgettables = new Map<string, Entity[]>();
     spinners: { e: Entity; speed: number }[] = [];
     smoke: Entity[] = [];
+    clouds!: Entity;
+    private waterMat: StandardMaterial | null = null;
     lagoon = { x: 0, z: 0, r: 0 };
     islet = { x: 0, z: 0, r: 0 };
     spireOrb!: Entity;
@@ -97,7 +100,6 @@ export class World {
         this.app = app;
         this.root = new PcEntity('world');
         app.root.addChild(this.root);
-        P.stars(this.root, app.graphicsDevice, 520);
         P.theBlank(this.root);
         this.buildHearthpage();
         this.buildForkwood();
@@ -106,6 +108,8 @@ export class World {
         this.buildForgehollow();
         this.buildSpire();
         this.buildDocks();
+        this.dressIsles();
+        this.buildSkyProps();
         this.batch(app);
     }
 
@@ -243,7 +247,7 @@ export class World {
 
     private buildHearthpage() {
         const id: IsleId = 'hearthpage';
-        const g = this.isleGroup(id, '#7DBE7A', '#5B4636', '#4A3A5E');
+        const g = this.isleGroup(id, '#86B957', '#9B6B45', '#8C807A');
         const mill = P.windmill(g, -2, -10, 0, 1.4);
         this.spinners.push({ e: mill.blades, speed: 0 });
         this.anchor('mill', id, -2, -10);
@@ -296,7 +300,7 @@ export class World {
                 [3, 16, 0.9],
                 [-12, 14]
             ],
-            '#4F9A5C'
+            '#5FB257'
         );
         for (const [x, z] of [
             [2, 3],
@@ -312,7 +316,7 @@ export class World {
 
     private buildForkwood() {
         const id: IsleId = 'forkwood';
-        const g = this.isleGroup(id, '#3E7D5A', '#3A2E2A', '#3A3366');
+        const g = this.isleGroup(id, '#5E9F55', '#7A5A3E', '#7A726C');
         // the tree wall dividing the fork from the clearing, with three arches (left, middle, right
         // as seen walking west from the fork). Trees overlap so the only ways through are the arches.
         const gaps = [7, 1.5, -4];
@@ -322,7 +326,7 @@ export class World {
             if (z - lastZ < 1.45) continue;
             lastZ = z;
             const x = -1.5;
-            P.tree(g, x + Math.sin(z * 0.7) * 0.25, z, 0.95, '#2C6346', '#5B4636', 'pine');
+            P.tree(g, x + Math.sin(z * 0.7) * 0.25, z, 0.95, '#2F7A50', '#5B4636', 'pine');
             this.col(id, x, z, 0.85);
         }
         const names = ['left', 'middle', 'right'];
@@ -356,7 +360,7 @@ export class World {
                 [-9, -15],
                 [-5, -12, 0.8]
             ],
-            '#2C6346',
+            '#2F7A50',
             'pine'
         );
         // east side
@@ -370,7 +374,7 @@ export class World {
                 [14, 3, 0.8],
                 [3, 15, 0.9]
             ],
-            '#4F9A5C'
+            '#5FB257'
         );
         this.inkwell(g, id, 11, 5);
         // a mossy log for Lethe
@@ -393,11 +397,16 @@ export class World {
 
     private buildLoopwater() {
         const id: IsleId = 'loopwater';
-        const g = this.isleGroup(id, '#E3D1A4', '#6B5A4A', '#3A3366');
+        const g = this.isleGroup(id, '#EBD9A8', '#A8835E', '#828C94');
         const lx = -3;
         const lz = -3;
-        P.water(g, lx, lz, 7.5);
         const [wx, wz] = this.w(id, lx, lz);
+        this.waterMat = waterMaterial(wx, wz, 7.5);
+        const lagoon = new PcEntity('lagoon');
+        lagoon.addComponent('render', { type: 'cylinder', material: this.waterMat, castShadows: false });
+        lagoon.setLocalPosition(lx, 0.02, lz);
+        lagoon.setLocalScale(15, 0.04, 15);
+        g.addChild(lagoon);
         this.lagoon = { x: wx, z: wz, r: 7.5 };
         part(g, 'cylinder', { color: '#E3D1A4', pos: [lx, 0.0, lz], scale: [5, 0.1, 5], outline: 0.04, shadow: false });
         this.islet = { x: wx, z: wz, r: 2.5 };
@@ -432,7 +441,7 @@ export class World {
                 [14, 10, 0.8],
                 [-6, 15, 0.9]
             ],
-            '#4F9A5C'
+            '#5FB257'
         );
         this.inkwell(g, id, 12.5, 4);
         P.bench(g, -14, 2, 90);
@@ -448,7 +457,7 @@ export class World {
 
     private buildLexicon() {
         const id: IsleId = 'lexicon';
-        const g = this.isleGroup(id, '#E2B867', '#8A5E3F', '#4A3A5E');
+        const g = this.isleGroup(id, '#EEC77A', '#B4804F', '#A08470');
         for (const [x, z, s] of [
             [-12, -8, 1],
             [10, 9, 0.8],
@@ -493,7 +502,7 @@ export class World {
 
     private buildForgehollow() {
         const id: IsleId = 'forgehollow';
-        const g = this.isleGroup(id, '#8E5A4A', '#4A2826', '#2A1F3A');
+        const g = this.isleGroup(id, '#B06C50', '#6E3B30', '#5E4A4C');
         const v = P.volcano(g, 6, -6, 1);
         this.smoke.push(...v.smoke);
         this.col(id, 6, -6, 4.4);
@@ -536,7 +545,7 @@ export class World {
 
     private buildSpire() {
         const id: IsleId = 'spire';
-        const g = this.isleGroup(id, '#2A2147', '#1E1838', '#15122B');
+        const g = this.isleGroup(id, '#C7BCEA', '#8273B8', '#5F5C8C');
         const sp = P.spire(g, 0, 0);
         this.spireOrb = sp.orb;
         this.col(id, 0, 0, 3.7);
@@ -565,6 +574,119 @@ export class World {
                 const e = P.dock(this.root, x, z, yaw);
                 this.docks.push({ isle: from, to, x: x + ux * 1.2, z: z + uz * 1.2, yaw, entity: e });
             }
+        }
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // anime dressing: ground cover on every isle, cumulus around the ring, a cloud sea below
+
+    private dressIsles() {
+        const cover: Record<
+            IsleId,
+            { grass: number; tint: string; flowers: number; petals: string[]; bushes: number }
+        > = {
+            hearthpage: {
+                grass: 700,
+                tint: '#98CC62',
+                flowers: 60,
+                petals: ['#FFFFFF', '#FFE27A', '#FFB3CF'],
+                bushes: 9
+            },
+            forkwood: {
+                grass: 800,
+                tint: '#6EAF5A',
+                flowers: 40,
+                petals: ['#9CC8FF', '#FFFFFF', '#C9A8FF'],
+                bushes: 7
+            },
+            loopwater: { grass: 240, tint: '#B9D77A', flowers: 18, petals: ['#FFFFFF', '#FFD08A'], bushes: 4 },
+            lexicon: { grass: 90, tint: '#D9C97A', flowers: 6, petals: ['#FFF3C2'], bushes: 0 },
+            forgehollow: { grass: 110, tint: '#8C9A52', flowers: 12, petals: ['#FF8A5C', '#FFD25A'], bushes: 0 },
+            spire: { grass: 160, tint: '#D8D0F4', flowers: 26, petals: ['#9FF3FF', '#E7B8FF', '#FFFFFF'], bushes: 0 }
+        };
+        let seed = 1234;
+        const rnd = () => {
+            seed = (seed * 16807) % 2147483647;
+            return seed / 2147483647;
+        };
+        const clear = (x: number, z: number, pad: number) => {
+            if (this.ground(x, z, true) !== 'ground') return false;
+            for (const c of this.colliders) if (Math.hypot(x - c.x, z - c.z) < c.r + pad) return false;
+            for (const d of this.docks) if (Math.hypot(x - d.x, z - d.z) < 3) return false;
+            return true;
+        };
+        for (const [id, c] of Object.entries(cover) as [IsleId, (typeof cover)[IsleId]][]) {
+            const d = ISLES[id];
+            const g = this.isleGroups.get(id)!;
+            const place = (n: number, pad: number, fn: (lx: number, lz: number) => void) => {
+                for (let i = 0, tries = 0; i < n && tries < n * 6; tries++) {
+                    const a = rnd() * Math.PI * 2;
+                    const r = Math.sqrt(rnd()) * (d.r - 1.2);
+                    const lx = Math.cos(a) * r;
+                    const lz = Math.sin(a) * r;
+                    if (!clear(d.x + lx, d.z + lz, pad)) continue;
+                    fn(lx, lz);
+                    i++;
+                }
+            };
+            // ground cover grows in patches, as in painted anime fields: a third of the tufts are
+            // scattered, the rest gather around patch centres (taller in the middle of a patch)
+            const patches: [number, number][] = [];
+            place(Math.ceil((c.grass * 0.67) / 7), 1.0, (x, z) => patches.push([x, z]));
+            place(Math.floor(c.grass * 0.33), 0.4, (x, z) =>
+                P.grassTuft(g, x, z, 0.75 + rnd() * 0.6, rnd() * 360, c.tint)
+            );
+            for (const [px, pz] of patches) {
+                for (let k = 0, tries = 0; k < 7 && tries < 20; tries++) {
+                    const a = rnd() * Math.PI * 2;
+                    const r = Math.sqrt(rnd()) * 1.6;
+                    const x = px + Math.cos(a) * r;
+                    const z = pz + Math.sin(a) * r;
+                    if (!clear(d.x + x, d.z + z, 0.4)) continue;
+                    P.grassTuft(g, x, z, 0.85 + (1 - r / 1.6) * 0.7 + rnd() * 0.3, rnd() * 360, c.tint);
+                    k++;
+                }
+            }
+            const flowerAt = (x: number, z: number, petal: string) =>
+                P.flowerClump(g, x, z, 0.9 + rnd() * 0.5, rnd() * 360, petal);
+            place(Math.ceil(c.flowers / 3), 0.5, (x, z) => {
+                // flowers come in little beds of one colour
+                const petal = c.petals[Math.floor(rnd() * c.petals.length)];
+                flowerAt(x, z, petal);
+                for (let k = 0; k < 2; k++) {
+                    const fx = x + (rnd() - 0.5) * 1.4;
+                    const fz = z + (rnd() - 0.5) * 1.4;
+                    if (clear(d.x + fx, d.z + fz, 0.5)) flowerAt(fx, fz, petal);
+                }
+            });
+            place(c.bushes, 1.2, (x, z) => {
+                const s = 0.9 + rnd() * 0.6;
+                P.bush(g, x, z, s, rnd() * 360, '#5FB257', c.petals[Math.floor(rnd() * c.petals.length)]);
+                this.colliders.push({ x: d.x + x, z: d.z + z, r: 0.5 * s });
+            });
+        }
+    }
+
+    private buildSkyProps() {
+        P.cloudSea(this.root, -34);
+        this.clouds = new PcEntity('clouds');
+        this.root.addChild(this.clouds);
+        const ring: [number, number, number, number][] = [
+            // angle (deg), radius, height, scale
+            [10, 120, 6, 3.2],
+            [55, 150, -6, 4.2],
+            [100, 110, 18, 2.4],
+            [150, 140, 2, 3.6],
+            [200, 125, -10, 3.0],
+            [240, 160, 12, 4.6],
+            [290, 115, -2, 2.8],
+            [330, 145, 22, 3.4],
+            [75, 190, 30, 5.0],
+            [180, 200, 26, 5.5],
+            [300, 185, 34, 4.8]
+        ];
+        for (const [a, r, y, sc] of ring) {
+            P.cloud(this.clouds, Math.cos(rad(a)) * r, y, Math.sin(rad(a)) * r, sc, a * 1.7);
         }
     }
 
@@ -639,6 +761,8 @@ export class World {
 
     update(dt: number, px: number, pz: number) {
         this.time += dt;
+        this.clouds?.rotateLocal(0, 0.4 * dt, 0);
+        this.waterMat?.setParameter('uWaterTime', this.time);
         for (const s of this.spinners) s.e.rotateLocal(0, 0, (s.speed || 0) * dt);
         for (const h of this.hearts.values()) {
             if (!h.enabled) continue;

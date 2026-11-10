@@ -37,8 +37,8 @@ export class Player {
     speed = 0;
     lastSafe = new Vec3();
     camYaw = 180;
-    camPitch = 26;
-    camDist = 11;
+    camPitch = 17;
+    camDist = 7.5;
     private camPos = new Vec3();
     private letheP = new Vec3();
     onFall: (() => void) | null = null;
@@ -111,8 +111,8 @@ export class Player {
     update(dt: number, input: Input, world: World, rules: MoveRules, allowMove: boolean) {
         // camera orbit
         this.camYaw -= input.dragX * 0.3;
-        this.camPitch = Math.min(62, Math.max(8, this.camPitch + input.dragY * 0.2));
-        this.camDist = Math.min(20, Math.max(5, this.camDist + input.wheel * 0.9));
+        this.camPitch = Math.min(62, Math.max(4, this.camPitch + input.dragY * 0.2));
+        this.camDist = Math.min(20, Math.max(3.5, this.camDist + input.wheel * 0.9));
         if (allowMove) {
             if (input.down('KeyQ')) this.camYaw += 90 * dt;
             if (input.down('KeyR')) this.camYaw -= 90 * dt;

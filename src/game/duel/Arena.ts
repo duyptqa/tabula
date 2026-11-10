@@ -49,7 +49,7 @@ export class Arena {
             for (let c = 0; c < COLS; c++) {
                 const cell = group(this.root, `cell-${c}-${r}`, [this.cx(c), 0, this.cz(r)]);
                 const fill = part(cell, 'box', {
-                    color: '#1F3A52',
+                    color: '#E3ECF2',
                     pos: [0, 0.03, 0],
                     scale: [CW - 0.18, 0.04, CD - 0.18],
                     unlit: true,
@@ -77,7 +77,7 @@ export class Arena {
         // a floating isle of stone under the grid
         if (hasModel('island')) {
             const base = instantiate('island', {
-                colors: { top: '#2E2858', soil: '#3A3170', rock: '#211C3F', crystal: '#8FF3FF' },
+                colors: { top: '#DCD4C4', soil: '#A99A85', rock: '#7E7B8E', crystal: '#8FF3FF' },
                 shadows: false
             });
             base.setLocalPosition(0, -0.07, 0);
@@ -85,24 +85,24 @@ export class Arena {
             this.root.addChild(base);
         } else {
             part(this.root, 'cylinder', {
-                color: '#2E2858',
+                color: '#DCD4C4',
                 pos: [0, -0.35, 0],
                 scale: [12.5, 0.6, 7.2],
                 outline: 0.08
             });
-            part(this.root, 'cone', { color: '#211C3F', pos: [0, -2.6, 0], rot: [180, 0, 0], scale: [11, 4, 6.4] });
+            part(this.root, 'cone', { color: '#7E7B8E', pos: [0, -2.6, 0], rot: [180, 0, 0], scale: [11, 4, 6.4] });
         }
         part(this.root, 'torus', {
-            color: '#5ED6E8',
+            color: '#C8F7FF',
             pos: [0, -0.02, 0],
             scale: [13.2, 0.3, 7.8],
             unlit: true,
-            ei: 0.35
+            ei: 1.0
         });
         for (let i = 0; i < 6; i++) {
             const a = (i / 6) * Math.PI * 2;
             if (hasModel('rock')) {
-                P.rock(this.root, Math.cos(a) * 11, Math.sin(a) * 7 - 3, 1.1, '#2B2452').setLocalPosition(
+                P.rock(this.root, Math.cos(a) * 11, Math.sin(a) * 7 - 3, 1.1, '#8A8496').setLocalPosition(
                     Math.cos(a) * 11,
                     -1.2 - (i % 3),
                     Math.sin(a) * 7 - 3
@@ -177,10 +177,10 @@ export class Arena {
         for (let r = 0; r < ROWS; r++) {
             for (let c = 0; c < COLS; c++) {
                 const fill = this.tiles[r][c].findByName('fill') as Entity;
-                let color = '#1F3A52';
-                if (forbidden.some((f) => f.c === c && f.r === r)) color = '#3E5A2A';
-                if (me.c === c && me.r === r) color = '#2C8CA0';
-                if (foe.c === c && foe.r === r) color = '#59607A';
+                let color = '#E3ECF2';
+                if (forbidden.some((f) => f.c === c && f.r === r)) color = '#A9D98A';
+                if (me.c === c && me.r === r) color = '#8FE6F4';
+                if (foe.c === c && foe.r === r) color = '#F4B3CB';
                 const mi = fill.render!.meshInstances[0];
                 mi.material = matFor(color);
             }
